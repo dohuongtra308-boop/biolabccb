@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+*.before-*.db
+*.db
+.env
+.env.*
+!.env.example
+*.log
+TAI_KHOAN_MAT_KHAU.txt
