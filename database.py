@@ -388,6 +388,7 @@ def init_db(force_reset=False):
         group_number INTEGER,
         quantity INTEGER NOT NULL DEFAULT 1,
         reason TEXT NOT NULL,
+        source TEXT DEFAULT 'MANUAL',
         is_resolved INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (session_id) REFERENCES lab_sessions(id) ON DELETE CASCADE,
@@ -395,6 +396,8 @@ def init_db(force_reset=False):
     )
     """)
     breakage_columns = {row[1] for row in cursor.execute("PRAGMA table_info(breakage_reports)")}
+    if "source" not in breakage_columns:
+        cursor.execute("ALTER TABLE breakage_reports ADD COLUMN source TEXT DEFAULT 'MANUAL'")
     if "cost_estimate" in breakage_columns:
         cursor.execute("ALTER TABLE breakage_reports DROP COLUMN cost_estimate")
 

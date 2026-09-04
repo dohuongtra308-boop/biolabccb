@@ -840,6 +840,34 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
             checks = [int(bool(body.get(f's{i}'))) for i in range(1, 6)]
             if not all(checks):
                 conn.close(); self.send_json({"success": False, "error": "Cần xác nhận đủ 5 mục 5S"}, status=400); return
+            damage_items = body.get('damage_items', []) or []
+            borrowed_rows = cursor.execute("""
+                SELECT equipment_id, SUM(quantity) AS quantity
+                FROM inventory_transactions
+                WHERE session_id=? AND transaction_type='BORROW'
+                GROUP BY equipment_id
+            """, (s_id,)).fetchall()
+            borrowed_quantities = {row['equipment_id']: row['quantity'] for row in borrowed_rows}
+            normalized_damages = []
+            for item in damage_items:
+                try:
+                    equipment_id = int(item.get('equipment_id'))
+                    quantity = int(item.get('quantity', 0))
+                except (TypeError, ValueError, AttributeError):
+                    equipment_id, quantity = 0, 0
+                reason = str(item.get('reason', '') if isinstance(item, dict) else '').strip()
+                equipment = cursor.execute("SELECT id,name FROM equipment WHERE id=?", (equipment_id,)).fetchone()
+                borrowed_quantity = int(borrowed_quantities.get(equipment_id, 0))
+                if not equipment or quantity < 1 or not reason or quantity > borrowed_quantity:
+                    conn.close()
+                    self.send_json({"success": False, "error": "Sự cố phải thuộc thiết bị đã mượn và số lượng không vượt quá phiếu"}, status=400)
+                    return
+                normalized_damages.append({
+                    'equipment_id': equipment_id,
+                    'quantity': quantity,
+                    'reason': reason,
+                    'group_number': item.get('group_number') if isinstance(item, dict) else None
+                })
             cursor.execute("""
                 INSERT INTO session_reports(session_id,status,usage_items,damage_items,notes,s1_done,s2_done,s3_done,s4_done,s5_done,submitted_at)
                 VALUES (?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -848,7 +876,25 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
                   s2_done=excluded.s2_done, s3_done=excluded.s3_done, s4_done=excluded.s4_done,
                   s5_done=excluded.s5_done, submitted_at=CURRENT_TIMESTAMP
             """, (s_id, json.dumps(body.get('usage_items', []), ensure_ascii=False),
-                  json.dumps(body.get('damage_items', []), ensure_ascii=False), body.get('notes',''), *checks))
+                  json.dumps(normalized_damages, ensure_ascii=False), body.get('notes',''), *checks))
+            cursor.execute("DELETE FROM breakage_reports WHERE session_id=? AND source='TEACHER_REPORT' AND is_resolved=0", (s_id,))
+            for item in normalized_damages:
+                already_resolved = cursor.execute("""
+                    SELECT 1 FROM breakage_reports
+                    WHERE session_id=? AND equipment_id=? AND quantity=? AND reason=?
+                      AND source='TEACHER_REPORT' AND is_resolved=1
+                """, (s_id, item['equipment_id'], item['quantity'], item['reason'])).fetchone()
+                if not already_resolved:
+                    cursor.execute("""
+                        INSERT INTO breakage_reports
+                            (session_id,equipment_id,group_number,quantity,reason,source)
+                        VALUES (?,?,?,?,?,'TEACHER_REPORT')
+                    """, (s_id, item['equipment_id'], item['group_number'], item['quantity'], item['reason']))
+            if normalized_damages:
+                cursor.execute("""
+                    INSERT INTO notifications(title,message,type,target_role)
+                    VALUES (?,?, 'BREAKAGE_ALERT', 'LAB_MANAGER')
+                """, ("Giáo viên báo cáo sự cố thiết bị", f"Ca {session['title']} có {len(normalized_damages)} sự cố chờ xác nhận"))
             cursor.execute("UPDATE lab_sessions SET status = 'PENDING_ACCEPTANCE' WHERE id = ?", (s_id,))
             conn.commit(); conn.close(); self.send_json({"success": True, "status": "PENDING_ACCEPTANCE"}); return
 

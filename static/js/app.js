@@ -28,6 +28,8 @@ let pendingExcelDownload = null;
 let backgroundSyncRunning = false;
 let lastBackgroundSnapshot = '';
 const rejectionReasonDrafts = {};
+let teacherReportDamageItems = [];
+let teacherReportPlannedQuantities = {};
 
 // Attach the login token to every API request. The server remains the source of truth.
 const nativeFetch = window.fetch.bind(window);
@@ -865,6 +867,20 @@ function openSessionReportModal(sessionId) {
     const quantity = Number(typeof item === 'string' ? 1 : item.quantity || 1);
     if (code) plannedQuantities[code] = (plannedQuantities[code] || 0) + quantity;
   });
+  teacherReportPlannedQuantities = plannedQuantities;
+  teacherReportDamageItems = [];
+  const damageEquipmentSelect = document.getElementById('report-damage-equipment');
+  if (damageEquipmentSelect) {
+    const plannedEquipment = allEquipment.filter(item => plannedQuantities[item.code]);
+    damageEquipmentSelect.innerHTML = plannedEquipment.length
+      ? '<option value="">-- Chọn thiết bị/dụng cụ --</option>' + plannedEquipment.map(item => `<option value="${item.id}">${escapeRegisterReviewText(item.name)} (${escapeRegisterReviewText(item.code)})</option>`).join('')
+      : '<option value="">Phiếu không có thiết bị</option>';
+  }
+  const damageReason = document.getElementById('report-damage-reason');
+  if (damageReason) damageReason.value = '';
+  const damageQuantity = document.getElementById('report-damage-quantity');
+  if (damageQuantity) damageQuantity.value = 1;
+  renderTeacherReportDamages();
   const consumables = allEquipment.filter(item => item.stock_type === 'CONSUMABLE' && plannedQuantities[item.code]);
   const usageBox = document.getElementById('report-consumables');
   usageBox.innerHTML = consumables.length ? consumables.map(item => `
@@ -880,8 +896,54 @@ function openSessionReportModal(sessionId) {
   document.getElementById('modal-session-report').classList.remove('hidden');
 }
 function closeSessionReportModal(){ document.getElementById('modal-session-report').classList.add('hidden'); }
+
+function syncTeacherReportDamageLimit() {
+  const equipmentId = Number(document.getElementById('report-damage-equipment')?.value);
+  const equipment = allEquipment.find(item => item.id === equipmentId);
+  const input = document.getElementById('report-damage-quantity');
+  if (!input || !equipment) return;
+  const maximum = Number(teacherReportPlannedQuantities[equipment.code] || 1);
+  input.max = maximum;
+  input.value = Math.min(Math.max(1, Number(input.value || 1)), maximum);
+}
+
+function addTeacherReportDamage() {
+  const equipmentId = Number(document.getElementById('report-damage-equipment')?.value);
+  const equipment = allEquipment.find(item => item.id === equipmentId);
+  const quantity = Number(document.getElementById('report-damage-quantity')?.value || 0);
+  const reason = document.getElementById('report-damage-reason')?.value.trim() || '';
+  const maximum = equipment ? Number(teacherReportPlannedQuantities[equipment.code] || 0) : 0;
+  if (!equipment || quantity < 1 || quantity > maximum || !reason) {
+    return showToast('Vui lòng chọn thiết bị, số lượng hợp lệ và nhập lý do sự cố', 'error');
+  }
+  const existingIndex = teacherReportDamageItems.findIndex(item => item.equipment_id === equipmentId);
+  const damage = {equipment_id:equipmentId, quantity, reason, group_number:null};
+  if (existingIndex >= 0) teacherReportDamageItems[existingIndex] = damage;
+  else teacherReportDamageItems.push(damage);
+  document.getElementById('report-damage-reason').value = '';
+  renderTeacherReportDamages();
+  showToast('Đã thêm sự cố vào báo cáo cuối ca', 'info');
+}
+
+function removeTeacherReportDamage(index) {
+  teacherReportDamageItems.splice(index, 1);
+  renderTeacherReportDamages();
+}
+
+function renderTeacherReportDamages() {
+  const list = document.getElementById('report-damage-list');
+  if (!list) return;
+  list.innerHTML = teacherReportDamageItems.length ? teacherReportDamageItems.map((item, index) => {
+    const equipment = allEquipment.find(entry => entry.id === item.equipment_id);
+    return `<div class="flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+      <div><b class="text-xs text-rose-800">${escapeRegisterReviewText(equipment?.name || 'Thiết bị')}</b><p class="text-[11px] text-slate-600">Số lượng: ${item.quantity} · ${escapeRegisterReviewText(item.reason)}</p></div>
+      <button type="button" onclick="removeTeacherReportDamage(${index})" class="text-rose-600 hover:text-rose-800" title="Xóa sự cố">✕</button>
+    </div>`;
+  }).join('') : '<p class="text-[11px] text-slate-400">Không có sự cố được ghi nhận.</p>';
+}
+
 async function submitSessionReport() {
-  const body = {notes:document.getElementById('report-notes').value,usage_items:[],damage_items:[]};
+  const body = {notes:document.getElementById('report-notes').value,usage_items:[],damage_items:teacherReportDamageItems};
   document.querySelectorAll('[data-consumable-code]').forEach(input => {
     body.usage_items.push({code: input.dataset.consumableCode, used_quantity: Number(input.value || 0)});
   });
