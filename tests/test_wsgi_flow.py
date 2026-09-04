@@ -269,7 +269,11 @@ def main():
     complete_report = {
         "notes": "Báo cáo kiểm thử",
         "usage_items": [{"code": equipment_rows[1]["code"], "used_quantity": 1}],
-        "damage_items": [],
+        "damage_items": [{
+            "equipment_id": equipment_rows[0]["id"],
+            "quantity": 1,
+            "reason": "Sự cố được giáo viên ghi trong báo cáo cuối ca",
+        }],
         **{f"s{i}": True for i in range(1, 6)},
     }
     expect(
@@ -281,6 +285,13 @@ def main():
         200,
         "teacher submits 5S report",
     )
+    conn = sqlite3.connect(db_path)
+    teacher_damage_count = conn.execute(
+        "SELECT COUNT(*) FROM breakage_reports WHERE session_id=? AND source='TEACHER_REPORT'",
+        (session_id,),
+    ).fetchone()[0]
+    conn.close()
+    assert teacher_damage_count == 1, "Teacher report damage must appear in breakage management"
     expect(
         manager.post(
             f"/api/sessions/{session_id}/accept-report",
@@ -457,6 +468,13 @@ def main():
     assert "Phân khu 5S" not in equipment_xml
     assert "Tổng SL đã dùng" not in equipment_xml
     assert "Số lượt mượn" in equipment_xml
+
+    breakages_xml = manager.get(
+        "/api/export/breakages-excel", headers=manager_headers
+    ).data.decode("utf-8")
+    for heading in ("Tiết học", "Tên bài học", "Giáo viên", "Địa điểm"):
+        assert heading in breakages_xml
+    assert TEST_TITLE in breakages_xml
 
     expect(manager.get("/api/not-found", headers=manager_headers), 404, "unknown API")
     expect(teacher.post("/api/auth/logout", headers=teacher_headers), 200, "logout")

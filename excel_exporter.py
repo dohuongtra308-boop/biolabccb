@@ -173,7 +173,8 @@ def export_breakages_report() -> str:
     cursor = conn.cursor()
     cursor.execute("""
     SELECT 
-        b.id, s.session_date, s.class_name, b.group_number,
+        b.id, s.session_date, s.period_slot, s.title, s.class_name,
+        s.requested_location, s.approved_location, b.group_number,
         e.code as eq_code, e.name as eq_name, e.zone,
         b.quantity, e.unit, b.reason, b.is_resolved,
         u.full_name as teacher_name
@@ -186,20 +187,23 @@ def export_breakages_report() -> str:
     rows = cursor.fetchall()
     conn.close()
 
-    headers = ["STT", "Ngày xảy ra", "Lớp Chuyên", "Bàn / Nhóm", "Mã thiết bị", "Tên thiết bị hỏng/vỡ", "Số lượng", "Đơn vị", "Nguyên nhân / Mô tả sự cố", "Giáo viên đứng lớp", "Trạng thái xác nhận"]
+    headers = ["STT", "Ngày xảy ra", "Tiết học", "Tên bài học", "Lớp Chuyên", "Giáo viên", "Địa điểm", "Bàn / Nhóm", "Mã thiết bị", "Tên thiết bị hỏng/vỡ", "Số lượng", "Đơn vị", "Nguyên nhân / Mô tả sự cố", "Trạng thái xác nhận"]
     data_rows = []
     for idx, r in enumerate(rows, 1):
         data_rows.append([
             idx,
             r["session_date"],
+            r["period_slot"],
+            r["title"],
             r["class_name"],
+            r["teacher_name"],
+            "Phòng thực hành" if r["approved_location"] == "LAB" else "Lớp học" if r["approved_location"] == "CLASS" else "Đề nghị tại lớp" if r["requested_location"] == "CLASS" else "Đề nghị phòng thực hành",
             f"Nhóm {r['group_number']}" if r["group_number"] else "Toàn lớp",
             r["eq_code"],
             r["eq_name"],
             r["quantity"],
             r["unit"],
             r["reason"],
-            r["teacher_name"],
             "Đã xác nhận và trừ kiểm kê" if r["is_resolved"] else "Chờ cán bộ xác nhận"
         ])
 

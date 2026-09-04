@@ -1919,7 +1919,7 @@ async function decideBooking(sessionId, decision) {
 async function acceptSessionReport(sessionId, action) {
   const reason = document.getElementById(`acceptance-message-${sessionId}`)?.value.trim() || '';
   const failed_items = action === 'REDO_5S' ? ['5S'] : [];
-  if (action === 'REDO_5S' && !reason) return showToast('Vui lòng nhập tin nhắn nêu nội dung 5S cần bổ sung', 'error');
+  if (action === 'REDO_5S' && !reason) return showToast('Vui lòng nhập tin nhắn nêu nội dung cần bổ sung', 'error');
   const res = await fetch(`/api/sessions/${sessionId}/accept-report`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,reason,failed_items})});
   const data = await res.json();
   if (!res.ok) return showToast(data.error || 'Không thể nghiệm thu', 'error');

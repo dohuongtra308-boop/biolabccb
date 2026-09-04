@@ -1051,6 +1051,16 @@
         <p class="text-[11px] text-slate-500">Nhập lượng thực tế đã dùng; phần còn dư sẽ được trả lại kho khi cán bộ nghiệm thu.</p>
         <div id="report-consumables" class="space-y-2"></div>
       </div>
+      <div class="space-y-3 rounded-2xl border border-rose-200 bg-rose-50/50 p-4 text-xs">
+        <div><p class="font-bold text-rose-800">Ghi nhận sự cố thiết bị/dụng cụ</p><p class="mt-1 text-[11px] text-slate-500">Sự cố sẽ chuyển sang mục Quản lý sự cố của cán bộ và chỉ trừ kiểm kê sau khi được xác nhận.</p></div>
+        <div class="grid sm:grid-cols-[minmax(0,1fr)_90px] gap-2">
+          <select id="report-damage-equipment" onchange="syncTeacherReportDamageLimit()" class="w-full rounded-xl border border-rose-200 bg-white p-2.5"></select>
+          <input id="report-damage-quantity" type="number" min="1" value="1" class="w-full rounded-xl border border-rose-200 bg-white p-2.5 text-center font-bold" aria-label="Số lượng thiết bị gặp sự cố">
+        </div>
+        <textarea id="report-damage-reason" rows="2" class="w-full rounded-xl border border-rose-200 bg-white p-2.5" placeholder="Mô tả hỏng, vỡ, mất hoặc nguyên nhân sự cố..."></textarea>
+        <button type="button" onclick="addTeacherReportDamage()" class="w-full rounded-xl border border-rose-300 bg-white py-2.5 font-bold text-rose-700 hover:bg-rose-50">+ Thêm sự cố vào báo cáo</button>
+        <div id="report-damage-list" class="space-y-2"></div>
+      </div>
       <div><label class="block text-xs font-bold mb-1">Ghi chú sử dụng, tiêu hao, hỏng/vỡ/mất:</label><textarea id="report-notes" rows="4" class="w-full p-3 border rounded-xl"></textarea></div>
       <button onclick="submitSessionReport()" class="w-full py-3 bg-emerald-600 text-white rounded-xl text-xs font-bold">Gửi báo cáo cuối ca</button>
     </div>
@@ -1060,6 +1070,6 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 max-w-sm pointer-events-none"></div>
 
   <!-- ================= JAVASCRIPT APPLICATION LOGIC ================= -->
-  <script src="/static/js/app.js?v=20260904-grade-lesson-10"></script>
+  <script src="/static/js/app.js?v=20260904-teacher-damage-11"></script>
 </body>
 </html>
