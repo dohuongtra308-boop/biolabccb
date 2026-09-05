@@ -252,7 +252,7 @@ async function handleAccountButton() {
 }
 
 // ================= 4. AUTHENTICATION ACTIONS =================
-function openLoginModal(titleText = 'Đăng Nhập Hệ Thống THPT Chuyên') {
+function openLoginModal(titleText = 'Đăng Nhập Hệ Thống THPT Chuyên Cao Bằng') {
   const title = document.getElementById('login-modal-title');
   if (title) title.textContent = titleText;
   document.getElementById('modal-login').classList.remove('hidden');
