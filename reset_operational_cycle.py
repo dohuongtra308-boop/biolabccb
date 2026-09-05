@@ -47,48 +47,19 @@ def reset_cycle(confirm=False):
             for table in OPERATIONAL_TABLES
         }
 
-        # Return inventory still checked out by unfinished sessions. Confirmed
-        # consumption and damage remain deducted from the physical inventory.
-        outstanding = cursor.execute("""
-            SELECT borrowed.equipment_id,
-                   borrowed.quantity
-                     - COALESCE(returned.quantity, 0)
-                     - COALESCE(consumed.quantity, 0) AS outstanding_quantity
-            FROM (
-                SELECT equipment_id, SUM(quantity) AS quantity
-                FROM inventory_transactions
-                WHERE transaction_type = 'BORROW'
-                GROUP BY equipment_id
-            ) borrowed
-            LEFT JOIN (
-                SELECT equipment_id, SUM(quantity) AS quantity
-                FROM inventory_transactions
-                WHERE transaction_type = 'RETURN'
-                GROUP BY equipment_id
-            ) returned ON returned.equipment_id = borrowed.equipment_id
-            LEFT JOIN (
-                SELECT equipment_id, SUM(quantity) AS quantity
-                FROM inventory_transactions
-                WHERE transaction_type = 'CONSUME'
-                GROUP BY equipment_id
-            ) consumed ON consumed.equipment_id = borrowed.equipment_id
-        """).fetchall()
-
-        restored_quantity = 0
-        for row in outstanding:
-            quantity = max(0, int(row["outstanding_quantity"] or 0))
-            if quantity:
-                cursor.execute(
-                    "UPDATE equipment SET available_qty=MIN(total_qty,available_qty+?) WHERE id=?",
-                    (quantity, row["equipment_id"]),
-                )
-                restored_quantity += quantity
+        # Start a completely fresh cycle: refill equipment, reusable tools and
+        # consumables alike. Keep total quantity and GOOD/MAINTENANCE status.
+        refill_quantity = cursor.execute("""
+            SELECT COALESCE(SUM(MAX(0, total_qty - available_qty)), 0)
+            FROM equipment
+        """).fetchone()[0]
+        cursor.execute("UPDATE equipment SET available_qty = total_qty")
 
         for table in OPERATIONAL_TABLES:
             cursor.execute(f"DELETE FROM {table}")
 
         conn.commit()
-        return backup_path, counts_before, restored_quantity
+        return backup_path, counts_before, refill_quantity
     except Exception:
         conn.rollback()
         raise
@@ -100,8 +71,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Reset BioLab operational data")
     parser.add_argument("--yes", action="store_true", help="confirm the reset")
     args = parser.parse_args()
-    backup, counts, restored = reset_cycle(confirm=args.yes)
+    backup, counts, refilled = reset_cycle(confirm=args.yes)
     print(f"BACKUP={backup}")
-    print(f"RESTORED_OUTSTANDING_QUANTITY={restored}")
+    print(f"REFILLED_QUANTITY={refilled}")
     for table, count in counts.items():
         print(f"CLEARED_{table.upper()}={count}")

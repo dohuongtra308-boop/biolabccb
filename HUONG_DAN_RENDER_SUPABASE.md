@@ -13,9 +13,12 @@ Trong PowerShell tại thư mục dự án:
 
 ```powershell
 python -m pip install -r requirements.txt
-$env:DATABASE_URL="postgresql://CONNECTION_STRING_CUA_SUPABASE"
+$env:DATABASE_URL="CONNECTION_STRING_CUA_SUPABASE"
+
+CMD : set DATABASE_URL="CONNECTION_STRING_CUA_SUPABASE"
 python migrate_sqlite_to_supabase.py --source biolab.db --yes
 Remove-Item Env:DATABASE_URL
+CMD : set DATABASE_URL=
 ```
 
 Script sẽ tạo schema PostgreSQL, xóa dữ liệu đích và sao chép dữ liệu từ `biolab.db`.

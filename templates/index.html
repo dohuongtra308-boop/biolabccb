@@ -127,7 +127,7 @@
             </p>
           </div>
           <div class="mt-6 flex items-center text-xs font-bold text-emerald-600 group-hover:translate-x-1 transition">
-            Đăng nhập (Cô Hương Trà) <i data-lucide="arrow-right" class="w-4 h-4 ml-1"></i>
+            Đăng nhập <i data-lucide="arrow-right" class="w-4 h-4 ml-1"></i>
           </div>
         </div>
 
@@ -147,202 +147,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- ================= VIEW 1: STUDENT MOBILE INTERFACE ================= -->
-    <div id="view-student" class="hidden space-y-6 max-w-2xl mx-auto">
-      
-      <!-- Session Card Header -->
-      <div class="bg-gradient-to-r from-brand-700 to-teal-800 text-white p-5 rounded-2xl shadow-lg">
-        <div class="flex items-center justify-between">
-          <span id="student-class-badge" class="px-3 py-1 rounded-full text-xs font-extrabold bg-teal-400 text-brand-950 uppercase tracking-wider">
-            LỚP 12 SINH
-          </span>
-          <span class="text-xs text-teal-200 flex items-center gap-1">
-            <i data-lucide="clock" class="w-3.5 h-3.5"></i> <span id="student-session-slot">Tiết 1-2 (Sáng)</span>
-          </span>
-        </div>
-        <h2 id="student-session-title" class="text-lg font-bold mt-2 leading-snug">
-          Chưa chọn ca thực hành
-        </h2>
-        <p class="text-xs text-teal-100 mt-1 flex items-center gap-1.5">
-          <i data-lucide="user" class="w-3.5 h-3.5"></i> GVHD: <span id="student-teacher-name" class="font-semibold">Cô Đỗ Thị Hương Trà</span>
-        </p>
-
-        <!-- Group / Table Selector Dropdown (4 Bàn) -->
-        <div class="mt-4 pt-4 border-t border-teal-600/60 flex items-center justify-between">
-          <label class="text-xs font-semibold text-teal-100 flex items-center gap-1">
-            <i data-lucide="users" class="w-4 h-4"></i> Bạn ngồi Bàn / Nhóm nào?
-          </label>
-          <select id="student-group-select" onchange="onStudentGroupChange()" class="bg-brand-900 border border-teal-400 text-white text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-300">
-            <option value="1">Nhóm 1 (Bàn 1)</option>
-            <option value="2">Nhóm 2 (Bàn 2)</option>
-            <option value="3">Nhóm 3 (Bàn 3)</option>
-            <option value="4">Nhóm 4 (Bàn 4)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Stepper Navigation -->
-      <div class="flex border-b border-slate-200 text-xs font-bold text-slate-500 overflow-x-auto">
-        <button onclick="switchStudentStep(1)" id="step-tab-1" class="py-2.5 px-4 border-b-2 border-brand-600 text-brand-700 flex items-center gap-1.5 whitespace-nowrap">
-          <span class="w-5 h-5 rounded-full bg-brand-600 text-white flex items-center justify-center text-[10px]">1</span>
-          Lấy đồ Thí nghiệm
-        </button>
-        <button onclick="switchStudentStep(2)" id="step-tab-2" class="py-2.5 px-4 border-b-2 border-transparent hover:text-slate-800 flex items-center gap-1.5 whitespace-nowrap">
-          <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px]">2</span>
-          Sổ tay ảnh bài làm
-        </button>
-        <button onclick="switchStudentStep(3)" id="step-tab-3" class="py-2.5 px-4 border-b-2 border-transparent hover:text-slate-800 flex items-center gap-1.5 whitespace-nowrap">
-          <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px]">3</span>
-          Check-list 5S Vệ sinh
-        </button>
-      </div>
-
-      <!-- STEP 1: Quick Check-in Dụng cụ  -->
-      <div id="student-step-1" class="space-y-4">
-        <div class="bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-xl text-xs text-amber-900 leading-relaxed">
-          <strong>Hướng dẫn tự phục vụ:</strong> Hãy di chuyển đến các tủ Phân khu (A, B, C, D, E) lấy đúng số lượng đồ dùng cho bàn nhóm mình và tích chọn vào danh mục dưới đây.
-        </div>
-
-        <!-- Zone Selector Tabs for Picking -->
-        <div class="grid grid-cols-5 gap-1 text-[11px] font-bold">
-          <button onclick="filterStudentZone('ZONE_A')" id="btn-sz-a" class="py-2 px-1 text-center rounded-lg bg-teal-600 text-white">Khu A<br><span class="text-[9px] font-normal">Đo lường</span></button>
-          <button onclick="filterStudentZone('ZONE_B')" id="btn-sz-b" class="py-2 px-1 text-center rounded-lg bg-slate-100 text-slate-700">Khu B<br><span class="text-[9px] font-normal">Thủy tinh</span></button>
-          <button onclick="filterStudentZone('ZONE_C')" id="btn-sz-c" class="py-2 px-1 text-center rounded-lg bg-slate-100 text-slate-700">Khu C<br><span class="text-[9px] font-normal">Hóa chất</span></button>
-          <button onclick="filterStudentZone('ZONE_D')" id="btn-sz-d" class="py-2 px-1 text-center rounded-lg bg-slate-100 text-slate-700">Khu D<br><span class="text-[9px] font-normal">Bộ Kit</span></button>
-          <button onclick="filterStudentZone('ZONE_E')" id="btn-sz-e" class="py-2 px-1 text-center rounded-lg bg-slate-100 text-slate-700">Khu E<br><span class="text-[9px] font-normal">Học liệu</span></button>
-        </div>
-
-        <!-- Equipment list to pick -->
-        <div id="student-equipment-list" class="space-y-2.5 max-h-96 overflow-y-auto p-1">
-          <!-- Injected via JS -->
-        </div>
-
-        <button onclick="saveStudentBorrowItems()" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2">
-          <i data-lucide="check" class="w-4 h-4"></i> Xác nhận danh mục bàn nhóm đã lấy
-        </button>
-      </div>
-
-      <!-- STEP 2: Sổ tay thí nghiệm số (Ảnh kết quả) -->
-      <div id="student-step-2" class="hidden space-y-4">
-        <div class="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-xl text-xs text-blue-900 leading-relaxed">
-          <strong>Minh chứng kết quả:</strong> Chụp ảnh rõ nét kết quả thí nghiệm (ảnh qua thị kính hiển vi, ống nghiệm chứa DNA, tiêu bản...) và tải lên để Giáo viên chấm điểm.
-        </div>
-
-        <!-- Camera / File Upload Box -->
-        <div class="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center bg-white space-y-3 hover:border-brand-500 transition">
-          <div class="w-12 h-12 mx-auto rounded-full bg-teal-50 text-brand-600 flex items-center justify-center">
-            <i data-lucide="camera" class="w-6 h-6"></i>
-          </div>
-          <div class="space-y-1">
-            <p class="text-xs font-bold text-slate-800">Chụp ảnh từ Camera điện thoại</p>
-            <p class="text-[11px] text-slate-500">Hỗ trợ định dạng JPG, PNG (tối đa 5MB)</p>
-          </div>
-          <input type="file" id="student-photo-input" accept="image/*" capture="environment" class="hidden" onchange="handleStudentPhotoUpload(event)">
-          <button onclick="document.getElementById('student-photo-input').click()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-lg shadow inline-flex items-center gap-1.5">
-            <i data-lucide="upload" class="w-4 h-4"></i> Mở Camera / Tải ảnh lên
-          </button>
-        </div>
-
-        <!-- Preview Uploaded Photos -->
-        <div id="student-photo-preview-grid" class="grid grid-cols-2 gap-3">
-          <!-- Injected via JS -->
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">Ghi chú quan sát / Kết luận thực hành:</label>
-          <textarea id="student-exp-note" rows="3" class="w-full text-xs p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none" placeholder="Nhập ghi chú quan sát hoặc kết luận thực hành..."></textarea>
-        </div>
-
-        <button onclick="saveStudentExperimentNote()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5">
-          <i data-lucide="save" class="w-4 h-4"></i> Lưu Sổ tay thí nghiệm
-        </button>
-      </div>
-
-      <!-- STEP 3: 5S Check-list & Nghiệm thu Dọn dẹp -->
-      <div id="student-step-3" class="hidden space-y-4">
-        <div class="bg-emerald-50 border-l-4 border-emerald-500 p-3 rounded-r-xl text-xs text-emerald-900 leading-relaxed">
-          <strong>Tiêu chuẩn 5S Phòng Lab:</strong> Hoàn thành 5 bước dưới đây và chụp 02 bức ảnh minh chứng (Bàn học sạch sẽ & Phân khu đã trả đồ) để Cán bộ nghiệm thu đóng ca.
-        </div>
-
-        <!-- 5S Checkboxes -->
-        <div class="space-y-2.5 bg-white p-4 rounded-2xl border border-slate-200 text-xs">
-          <!-- S1 -->
-          <label class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
-            <input type="checkbox" id="chk-s1" class="mt-0.5 w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
-            <div>
-              <span class="font-bold text-slate-900">S1 - Sàng lọc (Seiri):</span>
-              <p class="text-slate-500 text-[11px] mt-0.5">Thu gom rác thải sinh học vào thùng rác chuyên dụng; thu gom hóa chất thừa/ống vỡ.</p>
-            </div>
-          </label>
-          <!-- S2 -->
-          <label class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
-            <input type="checkbox" id="chk-s2" class="mt-0.5 w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
-            <div>
-              <span class="font-bold text-slate-900">S2 - Sắp xếp (Seiton):</span>
-              <p class="text-slate-500 text-[11px] mt-0.5">Trả kính hiển vi về Khu A, hóa chất về Khu C, mô hình về Khu D đúng vị trí ban đầu.</p>
-            </div>
-          </label>
-          <!-- S3 -->
-          <label class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
-            <input type="checkbox" id="chk-s3" class="mt-0.5 w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
-            <div>
-              <span class="font-bold text-slate-900">S3 - Sạch sẽ (Seiso):</span>
-              <p class="text-slate-500 text-[11px] mt-0.5">Rửa sạch ống nghiệm, cốc chia độ bằng chổi rửa; lau khô sạch bề mặt bàn học.</p>
-            </div>
-          </label>
-          <!-- S4 -->
-          <label class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
-            <input type="checkbox" id="chk-s4" class="mt-0.5 w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
-            <div>
-              <span class="font-bold text-slate-900">S4 - Săn sóc (Seiketsu):</span>
-              <p class="text-slate-500 text-[11px] mt-0.5">Rút phích cắm điện, tắt đèn cồn, trùm bạt bảo vệ kính hiển vi.</p>
-            </div>
-          </label>
-          <!-- S5 -->
-          <label class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
-            <input type="checkbox" id="chk-s5" class="mt-0.5 w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
-            <div>
-              <span class="font-bold text-slate-900">S5 - Sẵn sàng (Shitsuke):</span>
-              <p class="text-slate-500 text-[11px] mt-0.5">Bàn giao bàn học sạch đẹp, sẵn sàng cho ca thực hành tiếp theo.</p>
-            </div>
-          </label>
-        </div>
-
-        <!-- 2 Photos Upload: Bench & Zone -->
-        <div class="grid grid-cols-2 gap-3">
-          <!-- Photo 1: Bàn học -->
-          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center space-y-2">
-            <span class="text-[11px] font-bold text-slate-700 block">1. Ảnh Bàn học sạch sẽ</span>
-            <div id="preview-bench" class="h-24 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs overflow-hidden border">
-              Chưa có ảnh
-            </div>
-            <input type="file" id="bench-photo-input" accept="image/*" capture="environment" class="hidden" onchange="uploadBenchPhoto(event)">
-            <button onclick="document.getElementById('bench-photo-input').click()" class="w-full py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-[11px] font-bold rounded-lg flex items-center justify-center gap-1">
-              <i data-lucide="camera" class="w-3.5 h-3.5"></i> Chụp Bàn
-            </button>
-          </div>
-
-          <!-- Photo 2: Phân khu -->
-          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center space-y-2">
-            <span class="text-[11px] font-bold text-slate-700 block">2. Ảnh Phân khu đã trả</span>
-            <div id="preview-zone" class="h-24 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs overflow-hidden border">
-              Chưa có ảnh
-            </div>
-            <input type="file" id="zone-photo-input" accept="image/*" capture="environment" class="hidden" onchange="uploadZonePhoto(event)">
-            <button onclick="document.getElementById('zone-photo-input').click()" class="w-full py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-[11px] font-bold rounded-lg flex items-center justify-center gap-1">
-              <i data-lucide="camera" class="w-3.5 h-3.5"></i> Chụp Khu
-            </button>
-          </div>
-        </div>
-
-        <!-- Submit Final 5S Button -->
-        <button onclick="submitStudent5SChecklist()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-extrabold shadow-lg flex items-center justify-center gap-2">
-          <i data-lucide="send" class="w-4 h-4"></i> GỬI HOÀN TẤT CA & NGHIỆM THU 5S
-        </button>
-      </div>
-
     </div>
 
     <!-- ================= VIEW 2: TEACHER INTERFACE ================= -->
@@ -1070,6 +874,6 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 max-w-sm pointer-events-none"></div>
 
   <!-- ================= JAVASCRIPT APPLICATION LOGIC ================= -->
-  <script src="/static/js/app.js?v=20260905-db-pool-13"></script>
+  <script src="/static/js/app.js?v=20260905-remove-student-ui-14"></script>
 </body>
 </html>
