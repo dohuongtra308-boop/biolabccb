@@ -92,7 +92,14 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
         )
 
     def send_json(self, data, status=200):
-        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        # SQLite exposes timestamps as strings, while psycopg returns native
+        # datetime/date values. Convert database-native scalar values so the
+        # same API payload works on both backends.
+        body = json.dumps(
+            data,
+            ensure_ascii=False,
+            default=lambda value: value.isoformat() if hasattr(value, 'isoformat') else str(value),
+        ).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
