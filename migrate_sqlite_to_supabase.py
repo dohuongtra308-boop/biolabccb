@@ -68,7 +68,7 @@ def main():
                         "SELECT pg_get_serial_sequence(?, 'id') AS sequence_name", (table,)
                     ).fetchone()["sequence_name"]
                     if sequence:
-                        target.execute("SELECT setval(?, ?, true)", (sequence, max_id))
+                        target.execute("SELECT setval(?::regclass, ?, true)", (sequence, max_id))
             print(f"[OK] {table}: {len(rows)} dòng")
         target.commit()
     except Exception:

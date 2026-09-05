@@ -65,5 +65,7 @@ Render sẽ tự deploy commit mới. Dữ liệu nằm ở Supabase nên không
 
 - Không commit `DATABASE_URL`, mật khẩu Supabase hoặc service key.
 - Không đưa `biolab.db` và `TAI_KHOAN_MAT_KHAU.txt` lên GitHub.
+- Nếu mật khẩu database có ký tự đặc biệt, dùng nguyên connection string do Supabase cung cấp thay vì tự ghép URL.
+- `reset_operational_cycle.py` hiện chỉ hỗ trợ SQLite; không chạy script này khi ứng dụng đang kết nối Supabase.
 - Render/Supabase Free không có bảo đảm uptime 100%.
 - Nên xuất hoặc sao lưu dữ liệu định kỳ trước các thay đổi lớn.

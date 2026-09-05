@@ -5,7 +5,7 @@ import os
 import shutil
 from datetime import datetime
 
-from database import DB_FILE, get_db
+from database import DATABASE_URL, DB_FILE, get_db
 
 
 OPERATIONAL_TABLES = (
@@ -23,6 +23,11 @@ OPERATIONAL_TABLES = (
 def reset_cycle(confirm=False):
     if not confirm:
         raise RuntimeError("Use --yes to confirm the operational-cycle reset")
+    if DATABASE_URL:
+        raise RuntimeError(
+            "Script reset_operational_cycle.py hiện chỉ hỗ trợ SQLite. "
+            "Không chạy script này với DATABASE_URL PostgreSQL/Supabase."
+        )
 
     absolute_db = os.path.abspath(DB_FILE)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
