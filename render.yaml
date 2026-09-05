@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: biolabccb
+    name: biolabccb-singapore
     runtime: python
     region: singapore
     plan: free
