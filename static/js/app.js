@@ -148,7 +148,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Đồng bộ ngầm để thay đổi từ phía giáo viên/cán bộ xuất hiện không cần F5.
-  setInterval(syncVisibleState, 3000);
+  // Five seconds still gives near-real-time cross-user updates while leaving
+  // Render threads available for explicit button actions.
+  setInterval(syncVisibleState, 5000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) syncVisibleState();
   });

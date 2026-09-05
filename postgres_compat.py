@@ -1,7 +1,13 @@
 """Lớp tương thích nhỏ để code SQLite hiện tại chạy trên PostgreSQL/psycopg."""
 
 import re
+import threading
 from collections.abc import Mapping
+
+
+_pool = None
+_pool_url = None
+_pool_lock = threading.Lock()
 
 
 class CompatRow(Mapping):
@@ -110,6 +116,26 @@ class CompatConnection:
 
 
 def connect_postgres(database_url):
-    import psycopg
+    global _pool, _pool_url
+    if _pool is None or _pool_url != database_url:
+        with _pool_lock:
+            if _pool is None or _pool_url != database_url:
+                from psycopg_pool import ConnectionPool
 
-    return CompatConnection(psycopg.connect(database_url))
+                if _pool is not None:
+                    _pool.close()
+                # close_returns makes the existing conn.close() calls in the
+                # SQLite-oriented code return connections to the pool instead
+                # of performing a new TLS/database handshake on every API call.
+                _pool = ConnectionPool(
+                    conninfo=database_url,
+                    min_size=1,
+                    max_size=6,
+                    timeout=15,
+                    max_idle=300,
+                    open=True,
+                    close_returns=True,
+                    name="biolab-postgres",
+                )
+                _pool_url = database_url
+    return CompatConnection(_pool.getconn())
