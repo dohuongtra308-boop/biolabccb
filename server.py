@@ -154,6 +154,18 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
                 self.send_error(404, "Template not found")
                 return
 
+        # Public health check for Render/UptimeRobot. It performs a real database
+        # query so Supabase records activity, without exposing any application data.
+        if path == '/api/health':
+            try:
+                conn = get_db()
+                conn.execute("SELECT 1").fetchone()
+                conn.close()
+                self.send_json({"status": "ok", "database": "connected"})
+            except Exception:
+                self.send_json({"status": "error", "database": "disconnected"}, status=503)
+            return
+
         if path.startswith('/api/'):
             user = self.require_roles('TEACHER', 'LAB_MANAGER')
             if not user:
@@ -528,10 +540,11 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
                 status, planned_items, shift, period_start, period_end, student_count, requested_location, request_notes,
                 lesson_catalog_id, curriculum_period, lesson_activity)
             VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             """, (title, grade, class_name, teacher_id, session_date, period_slot, planned_items,
                   shift, period_start, period_end, student_count, requested_location, request_notes,
                   lesson_catalog_id, curriculum_period, lesson_activity))
-            session_id = cursor.lastrowid
+            session_id = cursor.fetchone()["id"]
 
             # Thêm thông báo
             cursor.execute("""

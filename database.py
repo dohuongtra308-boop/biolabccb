@@ -13,8 +13,12 @@ DB_FILE = os.environ.get(
     "BIOLAB_DB_FILE",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "biolab.db"),
 )
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 
 def get_db():
+    if DATABASE_URL:
+        from postgres_compat import connect_postgres
+        return connect_postgres(DATABASE_URL)
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
@@ -23,6 +27,8 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 def init_db(force_reset=False):
+    if force_reset and DATABASE_URL:
+        raise RuntimeError("Không hỗ trợ force_reset trực tiếp trên PostgreSQL")
     if force_reset and os.path.exists(DB_FILE):
         try:
             os.remove(DB_FILE)

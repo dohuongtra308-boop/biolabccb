@@ -102,6 +102,8 @@ def main():
     expect(anonymous.get("/"), 200, "landing page")
     static_response = expect(anonymous.get("/static/js/app.js"), 200, "static JS")
     assert static_response.content_type.startswith("application/javascript")
+    health = expect(anonymous.get("/api/health"), 200, "public database health check").get_json()
+    assert health == {"status": "ok", "database": "connected"}
     expect(anonymous.get("/api/equipment"), 401, "anonymous API guard")
 
     equipment_id = equipment_rows[0]["id"]

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: biolabccb
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 120 app:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: DATABASE_URL
+        sync: false
+      - key: BIOLAB_INITIAL_PASSWORD_GVPHUTRACH
+        sync: false
+      - key: BIOLAB_INITIAL_PASSWORD_DTHTRA
+        sync: false
+      - key: BIOLAB_INITIAL_PASSWORD_LHTHAM
+        sync: false
+      - key: BIOLAB_INITIAL_PASSWORD_CTBNGOC
+        sync: false
+      - key: BIOLAB_INITIAL_PASSWORD_DHSON
+        sync: false
+      - key: BIOLAB_INITIAL_PASSWORD_MTKTUYEN
+        sync: false
