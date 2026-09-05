@@ -1674,13 +1674,18 @@ function filterAdminZone(zone) {
   ['all', 'a', 'b', 'c', 'd', 'e'].forEach(z => {
     const btn = document.getElementById(`btn-az-${z}`);
     const isTarget = (z === 'all' && zone === 'ALL') || `ZONE_${z.toUpperCase()}` === zone;
-    btn.className = isTarget ? 'px-3 py-1.5 rounded-lg bg-brand-600 text-white' : 'px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700';
+    if (btn) {
+      btn.className = isTarget ? 'px-3 py-1.5 rounded-lg bg-brand-600 text-white' : 'px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700';
+    }
   });
 
   const tbody = document.getElementById('admin-inventory-tbody');
+  if (!tbody) return;
   const searchTerm = (document.getElementById('admin-inventory-search')?.value || '').trim().toLocaleLowerCase('vi');
   const items = (zone === 'ALL' ? allEquipment : allEquipment.filter(e => e.zone === zone)).filter(e => {
-    return !searchTerm || e.name.toLocaleLowerCase('vi').includes(searchTerm) || e.code.toLocaleLowerCase('vi').includes(searchTerm);
+    const name = String(e.name || '').toLocaleLowerCase('vi');
+    const code = String(e.code || '').toLocaleLowerCase('vi');
+    return !searchTerm || name.includes(searchTerm) || code.includes(searchTerm);
   });
 
   const zoneNames = {
