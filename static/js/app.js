@@ -445,10 +445,14 @@ function renderTeacherView() {
   renderTeacherTasks();
   renderCommonSchedule();
   const sessionList = document.getElementById('teacher-session-list');
+  const livePanel = document.getElementById('teacher-live-panel');
   if (allSessions.length === 0) {
     sessionList.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">Chưa có ca thực hành nào</div>`;
+    livePanel?.classList.add('hidden');
     return;
   }
+
+  livePanel?.classList.remove('hidden');
 
   sessionList.innerHTML = allSessions.map(s => `
     <div data-teacher-session-id="${s.id}" onclick="selectTeacherSession(${s.id})" class="p-4 rounded-xl border-2 transition cursor-pointer ${s.id === activeSessionId ? 'bg-emerald-100 border-emerald-600 ring-2 ring-emerald-200 shadow-md' : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40'}">
