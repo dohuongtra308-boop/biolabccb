@@ -99,9 +99,13 @@ def main():
     expect(app.test_client().get("/api/equipment", headers=teacher_headers), 200,
            "persisted SQLite session")
 
-    expect(anonymous.get("/"), 200, "landing page")
+    landing_html = expect(anonymous.get("/"), 200, "landing page").get_data(as_text=True)
+    assert 'id="modal-delete-session"' in landing_html
     static_response = expect(anonymous.get("/static/js/app.js"), 200, "static JS")
     assert static_response.content_type.startswith("application/javascript")
+    static_javascript = static_response.get_data(as_text=True)
+    assert "openDeleteSessionModal" in static_javascript
+    assert "confirm(`Bạn có chắc muốn xóa lịch đăng ký" not in static_javascript
     health = expect(anonymous.get("/api/health"), 200, "public database health check").get_json()
     assert health == {"status": "ok", "database": "connected"}
     expect(anonymous.get("/api/equipment"), 401, "anonymous API guard")

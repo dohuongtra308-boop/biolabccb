@@ -23,6 +23,7 @@ let lastBackgroundSnapshot = '';
 const rejectionReasonDrafts = {};
 let teacherReportDamageItems = [];
 let teacherReportPlannedQuantities = {};
+let pendingDeleteSessionId = null;
 
 // Attach the login token to every API request. The server remains the source of truth.
 const nativeFetch = window.fetch.bind(window);
@@ -494,7 +495,7 @@ async function selectTeacherSession(sessionId, showLoading = true) {
       ${s.approval_note ? `<p class="text-xs text-rose-600"><b>Phản hồi cán bộ:</b> ${s.approval_note}</p>` : ''}
       ${s.report_review_note ? `<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><b>Tin nhắn nghiệm thu 5S:</b> ${escapeRegisterReviewText(formatReportReviewNote(s.report_review_note))}</div>` : ''}
       <div class="flex gap-2 pt-2">
-        ${canDelete ? `<button onclick="deleteTeacherSession(event, ${s.id})" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold">Xóa lịch đăng ký</button>` : ''}
+        ${canDelete ? `<button onclick="openDeleteSessionModal(event, ${s.id})" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold">Xóa lịch đăng ký</button>` : ''}
         ${canStart ? `<button onclick="startTeachingSession(${s.id})" class="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold">Bắt đầu ca dạy</button>` : ''}
         ${canReport ? `<button onclick="openSessionReportModal(${s.id})" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">${s.status === 'REDO_5S' ? 'Thực hiện lại 5S' : 'Báo cáo cuối ca'}</button>` : ''}
         ${s.status === 'COMPLETED' ? `<button onclick="duplicateTeacherSession(${s.id})" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Đăng ký lại</button>` : ''}
@@ -502,16 +503,35 @@ async function selectTeacherSession(sessionId, showLoading = true) {
     </div>`;
 }
 
-async function deleteTeacherSession(event, sessionId) {
+function openDeleteSessionModal(event, sessionId) {
   event?.stopPropagation();
   const session = allSessions.find(item => item.id === sessionId);
   if (!session) return;
-  if (!confirm(`Bạn có chắc muốn xóa lịch đăng ký “${session.title}” ngày ${session.session_date}?`)) return;
+  pendingDeleteSessionId = sessionId;
+  document.getElementById('delete-session-description').textContent =
+    `Lịch “${session.title}” ngày ${session.session_date} sẽ bị xóa khỏi hệ thống.`;
+  document.getElementById('modal-delete-session').classList.remove('hidden');
+}
+
+function closeDeleteSessionModal() {
+  pendingDeleteSessionId = null;
+  document.getElementById('modal-delete-session').classList.add('hidden');
+}
+
+async function confirmDeleteTeacherSession() {
+  const sessionId = pendingDeleteSessionId;
+  if (!sessionId) return;
+  const button = document.getElementById('btn-confirm-delete-session');
+  button.disabled = true;
+  button.textContent = 'Đang xóa...';
 
   const res = await fetch(`/api/sessions/${sessionId}`, {method: 'DELETE'});
   const data = await res.json().catch(() => ({}));
+  button.disabled = false;
+  button.textContent = 'Xóa lịch';
   if (!res.ok) return showToast(data.error || 'Không thể xóa lịch đăng ký', 'error');
 
+  closeDeleteSessionModal();
   if (activeSessionId === sessionId) activeSessionId = null;
   await Promise.all([loadSessions(), loadCommonSchedule(), loadNotifications()]);
   renderTeacherView();

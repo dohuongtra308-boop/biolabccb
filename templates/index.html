@@ -870,10 +870,28 @@
     </div>
   </div>
 
+  <!-- DELETE SESSION CONFIRMATION MODAL -->
+  <div id="modal-delete-session" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="delete-session-title" class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl">
+      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+        <i data-lucide="trash-2" class="h-6 w-6"></i>
+      </div>
+      <div class="mt-4 text-center">
+        <h3 id="delete-session-title" class="text-lg font-bold text-slate-900">Xóa lịch đăng ký?</h3>
+        <p id="delete-session-description" class="mt-2 text-sm text-slate-600"></p>
+        <p class="mt-1 text-xs font-semibold text-rose-600">Thao tác này không thể hoàn tác.</p>
+      </div>
+      <div class="mt-6 grid grid-cols-2 gap-3">
+        <button type="button" onclick="closeDeleteSessionModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Không, quay lại</button>
+        <button id="btn-confirm-delete-session" type="button" onclick="confirmDeleteTeacherSession()" class="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white shadow hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60">Xóa lịch</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 max-w-sm pointer-events-none"></div>
 
   <!-- ================= JAVASCRIPT APPLICATION LOGIC ================= -->
-  <script src="/static/js/app.js?v=20260905-remove-student-ui-14"></script>
+  <script src="/static/js/app.js?v=20260909-delete-session-modal-15"></script>
 </body>
 </html>
