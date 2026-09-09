@@ -486,6 +486,7 @@ async function selectTeacherSession(sessionId, showLoading = true) {
   const location = s.approved_location === 'LAB' ? 'Phòng thực hành' : s.approved_location === 'CLASS' ? 'Lớp học' : 'Chờ cán bộ quyết định';
   const canStart = ['APPROVED_LAB', 'APPROVED_CLASS'].includes(s.status);
   const canReport = ['IN_PROGRESS', 'REDO_5S'].includes(s.status);
+  const canDelete = ['PENDING', 'NEEDS_CHANGES', 'REJECTED'].includes(s.status);
   grid.innerHTML = `
     <div class="col-span-2 p-5 rounded-xl border bg-slate-50 space-y-3">
       <div class="grid sm:grid-cols-2 gap-2 text-xs"><p><b>Địa điểm:</b> ${location}</p><p><b>Sĩ số:</b> ${s.student_count || 0}</p><p><b>Buổi:</b> ${s.shift === 'AFTERNOON' ? 'Chiều' : 'Sáng'}</p><p><b>Tiết:</b> ${s.period_start}–${s.period_end}</p></div>
@@ -493,11 +494,29 @@ async function selectTeacherSession(sessionId, showLoading = true) {
       ${s.approval_note ? `<p class="text-xs text-rose-600"><b>Phản hồi cán bộ:</b> ${s.approval_note}</p>` : ''}
       ${s.report_review_note ? `<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><b>Tin nhắn nghiệm thu 5S:</b> ${escapeRegisterReviewText(formatReportReviewNote(s.report_review_note))}</div>` : ''}
       <div class="flex gap-2 pt-2">
+        ${canDelete ? `<button onclick="deleteTeacherSession(event, ${s.id})" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold">Xóa lịch đăng ký</button>` : ''}
         ${canStart ? `<button onclick="startTeachingSession(${s.id})" class="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold">Bắt đầu ca dạy</button>` : ''}
         ${canReport ? `<button onclick="openSessionReportModal(${s.id})" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">${s.status === 'REDO_5S' ? 'Thực hiện lại 5S' : 'Báo cáo cuối ca'}</button>` : ''}
         ${s.status === 'COMPLETED' ? `<button onclick="duplicateTeacherSession(${s.id})" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Đăng ký lại</button>` : ''}
       </div>
     </div>`;
+}
+
+async function deleteTeacherSession(event, sessionId) {
+  event?.stopPropagation();
+  const session = allSessions.find(item => item.id === sessionId);
+  if (!session) return;
+  if (!confirm(`Bạn có chắc muốn xóa lịch đăng ký “${session.title}” ngày ${session.session_date}?`)) return;
+
+  const res = await fetch(`/api/sessions/${sessionId}`, {method: 'DELETE'});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return showToast(data.error || 'Không thể xóa lịch đăng ký', 'error');
+
+  if (activeSessionId === sessionId) activeSessionId = null;
+  await Promise.all([loadSessions(), loadCommonSchedule(), loadNotifications()]);
+  renderTeacherView();
+  lastBackgroundSnapshot = buildBackgroundSnapshot();
+  showToast('Đã xóa lịch đăng ký');
 }
 
 function renderTeacherTasks() {

@@ -1196,7 +1196,46 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
 
     # ================= DELETE REQUESTS =================
     def do_DELETE(self):
-        path = self.path
+        path = urllib.parse.urlparse(self.path).path
+        if path.startswith('/api/sessions/'):
+            user = self.require_roles('TEACHER')
+            if not user:
+                return
+            try:
+                session_id = int(path.split('/')[3])
+            except (IndexError, ValueError):
+                self.send_json({"success": False, "error": "Mã lịch đăng ký không hợp lệ"}, status=400)
+                return
+
+            conn = get_db()
+            cursor = conn.cursor()
+            session = cursor.execute(
+                "SELECT id, teacher_id, status FROM lab_sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+            if not session:
+                conn.close()
+                self.send_json({"success": False, "error": "Không tìm thấy lịch đăng ký"}, status=404)
+                return
+            if session['teacher_id'] != user['id']:
+                conn.close()
+                self.send_json({"success": False, "error": "Bạn chỉ được xóa lịch đăng ký của mình"}, status=403)
+                return
+            if session['status'] not in ('PENDING', 'NEEDS_CHANGES', 'REJECTED'):
+                conn.close()
+                self.send_json({"success": False, "error": "Lịch đã được duyệt hoặc đã bắt đầu nên không thể xóa"}, status=409)
+                return
+
+            cursor.execute("DELETE FROM lab_sessions WHERE id = ?", (session_id,))
+            cursor.execute(
+                "INSERT INTO audit_logs(user_id, action, entity_type, entity_id, detail) "
+                "VALUES (?, 'DELETE_BOOKING', 'BOOKING', ?, ?)",
+                (user['id'], session_id, f"Xóa lịch đăng ký ở trạng thái {session['status']}"),
+            )
+            conn.commit()
+            conn.close()
+            self.send_json({"success": True})
+            return
+
         if path.startswith('/api/equipment/'):
             user = self.require_roles('LAB_MANAGER')
             if not user:

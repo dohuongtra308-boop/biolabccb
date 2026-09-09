@@ -190,6 +190,23 @@ def main():
         "teacher creates overlapping pending registration",
     ).get_json()["session_id"]
 
+    expect(manager.delete(f"/api/sessions/{overlapping_session_id}", headers=manager_headers), 403,
+           "manager cannot delete a teacher registration")
+    expect(teacher.delete(f"/api/sessions/{overlapping_session_id}", headers=teacher_headers), 200,
+           "teacher deletes own pending registration")
+    conn = sqlite3.connect(db_path)
+    assert conn.execute("SELECT 1 FROM lab_sessions WHERE id=?", (overlapping_session_id,)).fetchone() is None
+    assert conn.execute(
+        "SELECT COUNT(*) FROM audit_logs WHERE action='DELETE_BOOKING' AND entity_id=?",
+        (overlapping_session_id,),
+    ).fetchone()[0] == 1
+    conn.close()
+    overlapping_session_id = expect(
+        teacher.post("/api/sessions", headers=teacher_headers, json=overlapping_registration),
+        200,
+        "teacher recreates overlapping pending registration",
+    ).get_json()["session_id"]
+
     expect(
         teacher.post(
             f"/api/sessions/{session_id}/approve",
@@ -216,6 +233,11 @@ def main():
         ),
         200,
         "manager approves registration",
+    )
+    expect(
+        teacher.delete(f"/api/sessions/{session_id}", headers=teacher_headers),
+        409,
+        "teacher cannot delete an approved registration",
     )
 
     conn = sqlite3.connect(db_path)
