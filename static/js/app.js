@@ -1033,6 +1033,7 @@ function formatReportReviewNote(value) {
 }
 
 function openRegisterReview() {
+  document.getElementById('reg-review-error').classList.add('hidden');
   const lessonSelection = document.getElementById('reg-lesson-select').value;
   const isCustomLesson = lessonSelection === 'CUSTOM';
   const lessonCatalogId = isCustomLesson ? null : parseInt(lessonSelection || '0');
@@ -1108,6 +1109,13 @@ function openRegisterReview() {
 }
 
 async function submitRegisterSession() {
+  const errorBox = document.getElementById('reg-review-error');
+  errorBox.classList.add('hidden');
+  const showReviewError = message => {
+    errorBox.textContent = message;
+    errorBox.classList.remove('hidden');
+    errorBox.scrollIntoView({block: 'nearest'});
+  };
   const lessonSelection = document.getElementById('reg-lesson-select').value;
   const isCustomLesson = lessonSelection === 'CUSTOM';
   const lessonCatalogId = isCustomLesson ? null : parseInt(lessonSelection || '0');
@@ -1123,7 +1131,7 @@ async function submitRegisterSession() {
   const checked = Array.from(selectedTeacherRegEquipment.entries());
 
   if ((!lessonCatalogId && !isCustomLesson) || !title || !cls || !date) {
-    showToast(isCustomLesson ? 'Vui lòng nhập tên bài, lớp và ngày dạy' : 'Vui lòng chọn tên bài, lớp và ngày dạy', 'error');
+    showReviewError(isCustomLesson ? 'Vui lòng nhập tên bài, lớp và ngày dạy' : 'Vui lòng chọn tên bài, lớp và ngày dạy');
     return;
   }
 
@@ -1150,7 +1158,7 @@ async function submitRegisterSession() {
     await loadSessions();
     renderTeacherView();
   } else {
-    showToast(data.error || 'Không thể gửi phiếu đăng ký', 'error');
+    showReviewError(data.error || 'Không thể gửi phiếu đăng ký');
   }
 }
 
