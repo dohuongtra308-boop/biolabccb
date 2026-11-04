@@ -24,6 +24,7 @@ const rejectionReasonDrafts = {};
 let teacherReportDamageItems = [];
 let teacherReportPlannedQuantities = {};
 let pendingDeleteSessionId = null;
+let bookingClassSession = null;
 
 // Attach the login token to every API request. The server remains the source of truth.
 const nativeFetch = window.fetch.bind(window);
@@ -508,8 +509,10 @@ function openDeleteSessionModal(event, sessionId) {
   const session = allSessions.find(item => item.id === sessionId);
   if (!session) return;
   pendingDeleteSessionId = sessionId;
+  const restoreStock = ['APPROVED_LAB','APPROVED_CLASS'].includes(session.status);
   document.getElementById('delete-session-description').textContent =
-    `Lịch “${session.title}” ngày ${session.session_date} sẽ bị xóa khỏi hệ thống.`;
+    `Phiếu lớp ${session.class_name} — “${session.title}” ngày ${session.session_date} sẽ bị xóa.${restoreStock ? ' Thiết bị đã xuất sẽ được hoàn kho.' : ''}`;
+  document.getElementById('delete-session-error').classList.add('hidden');
   document.getElementById('modal-delete-session').classList.remove('hidden');
 }
 
@@ -524,19 +527,93 @@ async function confirmDeleteTeacherSession() {
   const button = document.getElementById('btn-confirm-delete-session');
   button.disabled = true;
   button.textContent = 'Đang xóa...';
-
-  const res = await fetch(`/api/sessions/${sessionId}`, {method: 'DELETE'});
-  const data = await res.json().catch(() => ({}));
-  button.disabled = false;
-  button.textContent = 'Xóa lịch';
-  if (!res.ok) return showToast(data.error || 'Không thể xóa lịch đăng ký', 'error');
+  const errorBox = document.getElementById('delete-session-error');
+  errorBox.classList.add('hidden');
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}`, {method: 'DELETE'});
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Không thể xóa lịch đăng ký');
+  } catch (error) {
+    errorBox.textContent = error.message;
+    errorBox.classList.remove('hidden');
+    return;
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Xóa lịch';
+  }
 
   closeDeleteSessionModal();
   if (activeSessionId === sessionId) activeSessionId = null;
-  await Promise.all([loadSessions(), loadCommonSchedule(), loadNotifications()]);
-  renderTeacherView();
+  await Promise.all([loadSessions(), loadCommonSchedule(), loadNotifications(), loadEquipment()]);
+  if (currentUser?.role === 'LAB_MANAGER') renderAdminView();
+  else if (currentUser?.role === 'TEACHER') renderTeacherView();
   lastBackgroundSnapshot = buildBackgroundSnapshot();
   showToast('Đã xóa lịch đăng ký');
+}
+
+async function openBookingClassModal(sessionId) {
+  const session = allSessions.find(item => item.id === sessionId);
+  if (!session) return;
+  bookingClassSession = session;
+  const select = document.getElementById('booking-class-select');
+  const button = document.getElementById('btn-save-booking-class');
+  const errorBox = document.getElementById('booking-class-error');
+  errorBox.classList.add('hidden');
+  select.replaceChildren(new Option('Đang tải danh sách lớp…', ''));
+  button.disabled = true;
+  document.getElementById('booking-class-description').textContent =
+    `${session.teacher_name || 'Giáo viên bộ môn'} · ${session.class_name} · ${session.title} · ${session.session_date}`;
+  document.getElementById('modal-booking-class').classList.remove('hidden');
+  try {
+    const res = await fetch('/api/classes');
+    if (!res.ok) throw new Error('Không tải được danh sách lớp.');
+    const classes = (await res.json()).filter(item => Number(item.grade_level) === Number(session.grade_level));
+    if (bookingClassSession !== session) return;
+    if (!classes.length) throw new Error('Không có lớp đang hoạt động trong khối này.');
+    select.replaceChildren(...classes.map(item => new Option(item.name, item.name)));
+    select.value = session.class_name;
+    button.disabled = false;
+  } catch (error) {
+    if (bookingClassSession !== session) return;
+    errorBox.textContent = error.message;
+    errorBox.classList.remove('hidden');
+  }
+}
+
+function closeBookingClassModal() {
+  bookingClassSession = null;
+  document.getElementById('modal-booking-class').classList.add('hidden');
+}
+
+async function saveBookingClass(event) {
+  event.preventDefault();
+  const session = bookingClassSession;
+  if (!session) return;
+  const select = document.getElementById('booking-class-select');
+  if (select.value === session.class_name) return closeBookingClassModal();
+  const button = document.getElementById('btn-save-booking-class');
+  const errorBox = document.getElementById('booking-class-error');
+  button.disabled = true;
+  errorBox.classList.add('hidden');
+  try {
+    const res = await fetch(`/api/sessions/${session.id}/class`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({class_name: select.value})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Không thể cập nhật lớp.');
+  } catch (error) {
+    if (bookingClassSession === session) {
+      errorBox.textContent = error.message;
+      errorBox.classList.remove('hidden');
+      button.disabled = false;
+    }
+    return;
+  }
+  if (bookingClassSession === session) closeBookingClassModal();
+  await Promise.all([loadSessions(), loadCommonSchedule()]);
+  renderAdminView();
+  showToast('Đã cập nhật lớp đăng ký');
 }
 
 function renderTeacherTasks() {
@@ -643,7 +720,7 @@ function openSessionReportModal(sessionId) {
   const damageReason = document.getElementById('report-damage-reason');
   if (damageReason) damageReason.value = '';
   const damageQuantity = document.getElementById('report-damage-quantity');
-  if (damageQuantity) damageQuantity.value = 1;
+  if (damageQuantity) damageQuantity.value = damageQuantity.defaultValue;
   renderTeacherReportDamages();
   const consumables = allEquipment.filter(item => item.stock_type === 'CONSUMABLE' && plannedQuantities[item.code]);
   const usageBox = document.getElementById('report-consumables');
@@ -668,13 +745,14 @@ function syncTeacherReportDamageLimit() {
   if (!input || !equipment) return;
   const maximum = Number(teacherReportPlannedQuantities[equipment.code] || 1);
   input.max = maximum;
-  input.value = Math.min(Math.max(1, Number(input.value || 1)), maximum);
+  input.value = Math.min(Math.max(0, Number(input.value || 0)), maximum);
 }
 
 function addTeacherReportDamage() {
   const equipmentId = Number(document.getElementById('report-damage-equipment')?.value);
   const equipment = allEquipment.find(item => item.id === equipmentId);
-  const quantity = Number(document.getElementById('report-damage-quantity')?.value || 0);
+  const quantityInput = document.getElementById('report-damage-quantity');
+  const quantity = Number(quantityInput?.value || 0);
   const reason = document.getElementById('report-damage-reason')?.value.trim() || '';
   const maximum = equipment ? Number(teacherReportPlannedQuantities[equipment.code] || 0) : 0;
   if (!equipment || quantity < 1 || quantity > maximum || !reason) {
@@ -684,6 +762,7 @@ function addTeacherReportDamage() {
   const damage = {equipment_id:equipmentId, quantity, reason, group_number:null};
   if (existingIndex >= 0) teacherReportDamageItems[existingIndex] = damage;
   else teacherReportDamageItems.push(damage);
+  quantityInput.value = quantityInput.defaultValue;
   document.getElementById('report-damage-reason').value = '';
   renderTeacherReportDamages();
   showToast('Đã thêm sự cố vào báo cáo cuối ca', 'info');
@@ -721,7 +800,7 @@ async function submitSessionReport() {
   closeSessionReportModal(); await loadSessions(); renderTeacherView(); showToast('Đã gửi báo cáo, chờ đợi cán bộ xác nhận');
 }
 
-function filterClassesByGrade(loadCatalog = true) {
+function filterClassesByGrade() {
   const grade = document.getElementById('reg-grade').value;
   const select = document.getElementById('reg-class-select');
   if (!select) return;
@@ -734,14 +813,13 @@ function filterClassesByGrade(loadCatalog = true) {
 
   const list = classes[grade] || classes['12'];
   select.innerHTML = list.map(c => `<option value="${c}">${c}</option>`).join('');
-  if (loadCatalog && !registrationCopyMode) loadLessonCatalog();
 }
 
 function handleRegistrationGradeChange() {
   // Đổi khối là đổi chương trình học: không được giữ bài và thiết bị của khối cũ.
   registrationCopyMode = false;
   selectedTeacherRegEquipment.clear();
-  filterClassesByGrade(false);
+  filterClassesByGrade();
   updateTeacherRegTotals();
   switchTeacherRegZone('GENERAL');
   loadLessonCatalog();
@@ -753,17 +831,21 @@ let selectedTeacherRegEquipment = new Map();
 let currentLessonCatalog = [];
 let teacherUsageHistory = [];
 let registrationCopyMode = false;
+let lessonCatalogRequest = 0;
 
 async function loadLessonCatalog() {
   const grade = document.getElementById('reg-grade')?.value;
   const className = document.getElementById('reg-class-select')?.value;
   const select = document.getElementById('reg-lesson-select');
   if (!grade || !className || !select) return;
+  const request = ++lessonCatalogRequest;
+  currentLessonCatalog = [];
   select.innerHTML = '<option value="">Đang tải danh sách bài phù hợp...</option>';
   try {
     const res = await fetch(`/api/lesson-catalog?grade=${encodeURIComponent(grade)}&class_name=${encodeURIComponent(className)}`);
     if (!res.ok) throw new Error('Không tải được danh mục bài thực hành');
     const data = await res.json();
+    if (request !== lessonCatalogRequest) return;
     currentLessonCatalog = data.lessons || [];
     select.innerHTML = `<option value="">-- Chọn tên bài thực hành ${data.class_type || ''} --</option>` + currentLessonCatalog.map(lesson =>
       `<option value="${lesson.id}">${lesson.title}</option>`
@@ -775,6 +857,7 @@ async function loadLessonCatalog() {
     const status = document.getElementById('reg-suggestion-status');
     if (status) status.textContent = '';
   } catch (error) {
+    if (request !== lessonCatalogRequest) return;
     currentLessonCatalog = [];
     select.innerHTML = '<option value="">Không tải được danh mục bài thực hành</option>';
     showToast(error.message, 'error');
@@ -982,29 +1065,32 @@ function clearTeacherRegEquipment() {
 }
 
 async function openRegisterSessionModal() {
-  registrationCopyMode = false;
+  let draft = null;
+  try { draft = JSON.parse(localStorage.getItem(registrationDraftKey()) || 'null'); } catch (_) {}
+  registrationCopyMode = !!draft?.copyMode;
+  if (draft?.grade) document.getElementById('reg-grade').value = draft.grade;
   filterClassesByGrade();
-  setSessionShift('MORNING');
+  const classSelect = document.getElementById('reg-class-select');
+  if (draft?.className && Array.from(classSelect.options).some(option => option.value === draft.className)) {
+    classSelect.value = draft.className;
+  }
+  setSessionShift(draft?.shift || 'MORNING');
   selectedTeacherRegEquipment.clear();
+  await loadLessonCatalog();
+  if (draft) {
+    const lessonSelect = document.getElementById('reg-lesson-select');
+    lessonSelect.value = Array.from(lessonSelect.options).some(option => option.value === draft.lesson) ? draft.lesson : '';
+    document.getElementById('reg-custom-title').value=draft.customTitle||'';
+    document.getElementById('reg-custom-title-wrap').classList.toggle('hidden',lessonSelect.value!=='CUSTOM');
+    document.getElementById('reg-date').value=draft.date||''; document.getElementById('reg-student-count').value=draft.students||35;
+    document.getElementById('reg-notes').value=draft.notes||'';
+    document.getElementById('reg-period').value=draft.period||document.getElementById('reg-period').value;
+    selectedTeacherRegEquipment=new Map(draft.items||[]); document.getElementById('reg-location').value=draft.location||'LAB';
+    showToast('Đã khôi phục phiếu đang soạn','info');
+  }
   updateTeacherRegTotals();
   switchTeacherRegZone('GENERAL');
   document.getElementById('modal-register-session').classList.remove('hidden');
-  await loadLessonCatalog();
-  let draft = null;
-  try { draft = JSON.parse(localStorage.getItem(registrationDraftKey()) || 'null'); } catch (_) {}
-  if (draft) {
-    registrationCopyMode = !!draft.copyMode;
-    document.getElementById('reg-grade').value=draft.grade||'12'; filterClassesByGrade(false);
-    document.getElementById('reg-class-select').value=draft.className||document.getElementById('reg-class-select').value; await loadLessonCatalog();
-    document.getElementById('reg-lesson-select').value=draft.lesson||'';
-    document.getElementById('reg-custom-title').value=draft.customTitle||'';
-    document.getElementById('reg-custom-title-wrap').classList.toggle('hidden',draft.lesson!=='CUSTOM');
-    document.getElementById('reg-date').value=draft.date||''; document.getElementById('reg-student-count').value=draft.students||35;
-    document.getElementById('reg-notes').value=draft.notes||''; setSessionShift(draft.shift||'MORNING');
-    document.getElementById('reg-period').value=draft.period||document.getElementById('reg-period').value;
-    selectedTeacherRegEquipment=new Map(draft.items||[]); document.getElementById('reg-location').value=draft.location||'LAB';
-    updateTeacherRegTotals(); switchTeacherRegZone('GENERAL'); showToast('Đã khôi phục phiếu đang soạn','info');
-  }
 }
 
 function closeRegisterSessionModal() {
@@ -1166,7 +1252,7 @@ async function duplicateTeacherSession(sessionId) {
   const source=allSessions.find(item=>item.id===sessionId); if(!source)return;
   localStorage.removeItem(registrationDraftKey()); await openRegisterSessionModal();
   registrationCopyMode=true;
-  document.getElementById('reg-grade').value=String(source.grade_level||12); filterClassesByGrade(false);
+  document.getElementById('reg-grade').value=String(source.grade_level||12); filterClassesByGrade();
   document.getElementById('reg-class-select').value=source.class_name; await loadLessonCatalog();
   const lesson=currentLessonCatalog.find(item=>item.id===source.lesson_catalog_id);
   document.getElementById('reg-lesson-select').value=lesson?String(lesson.id):'CUSTOM';
@@ -1602,7 +1688,8 @@ async function toggleEquipmentStatus(eqId, currentStatus) {
 function renderAdminSessionCards(container, sessions, mode) {
   if (!container) return;
   if (sessions.length === 0) {
-    container.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">${mode === 'approval' ? 'Không có phiếu đăng ký chờ duyệt' : 'Không có tiết học chờ đợi xác nhận'}</div>`;
+    const emptyMessage = {approval:'Không có phiếu đăng ký chờ duyệt', acceptance:'Không có tiết học chờ đợi xác nhận', correction:'Không có phiếu đã xử lý cần kiểm tra'};
+    container.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">${emptyMessage[mode]}</div>`;
     return;
   }
   container.innerHTML = sessions.map(s => `
@@ -1610,6 +1697,7 @@ function renderAdminSessionCards(container, sessions, mode) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
         <div><span class="text-xs font-bold text-brand-800 bg-brand-100 px-2 py-0.5 rounded">LỚP ${s.class_name} • ${s.session_date}</span><h4 class="text-base font-bold text-slate-900 mt-1">${s.title}</h4><p class="text-xs text-slate-500">GV: ${s.teacher_name || 'Giáo viên bộ môn'} | ${s.period_slot}</p></div>
         <div class="flex flex-wrap items-center gap-2"><span class="px-3 py-1 bg-slate-100 rounded-full font-bold text-xs">${sessionStatusLabel(s.status)}</span>
+          ${mode !== 'acceptance' ? `<button type="button" onclick="openBookingClassModal(${s.id})" class="px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold">Sửa lớp</button><button type="button" onclick="openDeleteSessionModal(event,${s.id})" class="px-3 py-2 border border-rose-300 text-rose-700 rounded-lg text-xs font-bold">Xóa phiếu</button>` : ''}
           ${mode === 'approval' ? `<button onclick="decideBooking(${s.id},'APPROVE_LAB')" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold">Duyệt phòng TH</button><button onclick="decideBooking(${s.id},'APPROVE_CLASS')" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">Duyệt tại lớp</button><button onclick="decideBooking(${s.id},'REJECT')" class="px-3 py-2 bg-rose-600 text-white rounded-lg text-xs font-bold">Không đồng ý</button>` : ''}
         </div>
       </div>
@@ -1620,7 +1708,7 @@ function renderAdminSessionCards(container, sessions, mode) {
         <textarea id="rejection-reason-${s.id}" rows="2" oninput="rejectionReasonDrafts[${s.id}] = this.value" class="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="Nhập lý do để giáo viên biết và điều chỉnh phiếu...">${escapeRegisterReviewText(rejectionReasonDrafts[s.id] || '')}</textarea>
         <p class="text-[11px] text-slate-500">Ô này bắt buộc khi chọn “Không đồng ý”.</p>
       </div>` : ''}
-      ${mode !== 'approval' ? `<div class="rounded-xl border border-emerald-200 bg-white p-4 space-y-3">
+      ${mode === 'acceptance' ? `<div class="rounded-xl border border-emerald-200 bg-white p-4 space-y-3">
         <label for="acceptance-message-${s.id}" class="block text-xs font-bold text-slate-700">Tin nhắn nghiệm thu gửi giáo viên</label>
         <textarea id="acceptance-message-${s.id}" rows="3" class="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Nhập kết quả nghiệm thu hoặc nội dung giáo viên cần bổ sung..."></textarea>
         <div class="flex flex-wrap gap-2"><button onclick="acceptSessionReport(${s.id},'ACCEPT')" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold">Nghiệm thu sau tiết học</button><button onclick="acceptSessionReport(${s.id},'REDO_5S')" class="px-3 py-2 bg-amber-600 text-white rounded-lg text-xs font-bold">Yêu cầu bổ sung</button></div>
@@ -1632,6 +1720,8 @@ function renderAdminSessionCards(container, sessions, mode) {
 async function renderAdminBookingApprovals() {
   const container = document.getElementById('admin-session-acceptance-list');
   renderAdminSessionCards(container, allSessions.filter(s => ['PENDING','NEEDS_CHANGES'].includes(s.status)), 'approval');
+  renderAdminSessionCards(document.getElementById('admin-booking-corrections'),
+    allSessions.filter(s => ['APPROVED_LAB','APPROVED_CLASS','REJECTED'].includes(s.status)), 'correction');
 }
 
 async function renderAdminPostSessionAcceptance() {

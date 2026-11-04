@@ -21,6 +21,8 @@ from excel_exporter import export_sessions_schedule, export_equipment_usage, exp
 
 PORT = 8080
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEACHER_DELETABLE_BOOKING_STATES = ('PENDING', 'NEEDS_CHANGES', 'REJECTED')
+MANAGER_EDITABLE_BOOKING_STATES = TEACHER_DELETABLE_BOOKING_STATES + ('APPROVED_LAB', 'APPROVED_CLASS')
 
 def hash_auth_token(token):
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
@@ -1135,6 +1137,51 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
         path = self.path
         body = self.read_body_json()
 
+        class_route = re.fullmatch(r'/api/sessions/(\d+)/class', path)
+        if class_route:
+            user = self.require_roles('LAB_MANAGER')
+            if not user:
+                return
+            session_id = int(class_route[1])
+            class_name = str(body.get('class_name') or '').strip()
+            conn = get_db()
+            try:
+                session = conn.execute(
+                    "SELECT grade_level, class_name, status FROM lab_sessions WHERE id = ?",
+                    (session_id,),
+                ).fetchone()
+                if not session:
+                    self.send_json({"success": False, "error": "Không tìm thấy phiếu đăng ký"}, status=404)
+                    return
+                if session['status'] not in MANAGER_EDITABLE_BOOKING_STATES:
+                    self.send_json({"success": False, "error": "Chỉ được sửa lớp trước khi ca dạy bắt đầu"}, status=409)
+                    return
+                target = conn.execute(
+                    "SELECT 1 FROM classes WHERE name = ? AND grade_level = ? AND active = 1",
+                    (class_name, session['grade_level']),
+                ).fetchone()
+                if not target:
+                    self.send_json({"success": False, "error": "Hãy chọn lớp đang hoạt động cùng khối với bài thực hành"}, status=400)
+                    return
+                if class_name != session['class_name']:
+                    changed = conn.execute(
+                        "UPDATE lab_sessions SET class_name = ? WHERE id = ? AND status = ? AND class_name = ?",
+                        (class_name, session_id, session['status'], session['class_name']),
+                    )
+                    if changed.rowcount != 1:
+                        self.send_json({"success": False, "error": "Phiếu vừa thay đổi. Vui lòng tải lại và thử lại."}, status=409)
+                        return
+                    conn.execute(
+                        "INSERT INTO audit_logs(user_id,action,entity_type,entity_id,detail) "
+                        "VALUES (?,'CHANGE_BOOKING_CLASS','BOOKING',?,?)",
+                        (user['id'], session_id, f"{session['class_name']} -> {class_name}"),
+                    )
+                conn.commit()
+                self.send_json({"success": True, "class_name": class_name})
+                return
+            finally:
+                conn.close()
+
         # Manager toggles an inventory item between usable and maintenance.
         if path.startswith('/api/equipment/') and path.endswith('/status'):
             user = self.require_roles('LAB_MANAGER')
@@ -1186,7 +1233,14 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
                 conn.close()
                 self.send_json({"success": False, "error": "Phiếu phải được cán bộ duyệt trước khi bắt đầu"}, status=409)
                 return
-            cursor.execute("UPDATE lab_sessions SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ?", (status, s_id))
+            cursor.execute(
+                "UPDATE lab_sessions SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ? AND status = ?",
+                (status, s_id, session['status']),
+            )
+            if cursor.rowcount != 1:
+                conn.close()
+                self.send_json({"success": False, "error": "Phiếu vừa thay đổi. Vui lòng tải lại và thử lại."}, status=409)
+                return
             conn.commit()
             conn.close()
             self.send_json({"success": True})
@@ -1197,8 +1251,8 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
     # ================= DELETE REQUESTS =================
     def do_DELETE(self):
         path = urllib.parse.urlparse(self.path).path
-        if path.startswith('/api/sessions/'):
-            user = self.require_roles('TEACHER')
+        if re.fullmatch(r'/api/sessions/[^/]+', path):
+            user = self.require_roles('TEACHER', 'LAB_MANAGER')
             if not user:
                 return
             try:
@@ -1216,16 +1270,50 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
                 conn.close()
                 self.send_json({"success": False, "error": "Không tìm thấy lịch đăng ký"}, status=404)
                 return
-            if session['teacher_id'] != user['id']:
+            manager = user['role'] == 'LAB_MANAGER'
+            if not manager and session['teacher_id'] != user['id']:
                 conn.close()
                 self.send_json({"success": False, "error": "Bạn chỉ được xóa lịch đăng ký của mình"}, status=403)
                 return
-            if session['status'] not in ('PENDING', 'NEEDS_CHANGES', 'REJECTED'):
+            allowed = MANAGER_EDITABLE_BOOKING_STATES if manager else TEACHER_DELETABLE_BOOKING_STATES
+            if session['status'] not in allowed:
                 conn.close()
-                self.send_json({"success": False, "error": "Lịch đã được duyệt hoặc đã bắt đầu nên không thể xóa"}, status=409)
+                self.send_json({"success": False, "error": "Không thể xóa phiếu ở trạng thái hiện tại"}, status=409)
                 return
 
-            cursor.execute("DELETE FROM lab_sessions WHERE id = ?", (session_id,))
+            cursor.execute("""
+                DELETE FROM lab_sessions WHERE id = ? AND status = ?
+                  AND NOT EXISTS (SELECT 1 FROM session_reports WHERE session_id = ?)
+                  AND NOT EXISTS (SELECT 1 FROM breakage_reports WHERE session_id = ?)
+                """, (session_id, session['status'], session_id, session_id))
+            if cursor.rowcount != 1:
+                conn.close()
+                self.send_json({"success": False, "error": "Phiếu vừa thay đổi hoặc đã có báo cáo/sự cố nên không thể xóa"}, status=409)
+                return
+            if session['status'] in ('APPROVED_LAB', 'APPROVED_CLASS'):
+                borrowed = cursor.execute(
+                    "SELECT equipment_id, quantity FROM inventory_transactions "
+                    "WHERE session_id = ? AND transaction_type = 'BORROW' ORDER BY equipment_id",
+                    (session_id,),
+                ).fetchall()
+                for item in borrowed:
+                    qty, equipment_id = item['quantity'], item['equipment_id']
+                    cursor.execute(
+                        "UPDATE equipment SET available_qty = available_qty + ? "
+                        "WHERE id = ? AND available_qty + ? <= total_qty",
+                        (qty, equipment_id, qty),
+                    )
+                    if cursor.rowcount != 1:
+                        conn.rollback()
+                        conn.close()
+                        self.send_json({"success": False, "error": "Không thể hoàn kho. Vui lòng kiểm tra tồn kho của thiết bị trước khi xóa phiếu."}, status=409)
+                        return
+                    cursor.execute(
+                        "INSERT INTO inventory_transactions(session_id,equipment_id,transaction_type,quantity,note) "
+                        "VALUES (?,?,'RETURN',?,'Hoàn kho khi xóa phiếu đăng ký')",
+                        (session_id, equipment_id, qty),
+                    )
+                cursor.execute("DELETE FROM equipment_borrow_events WHERE session_id = ?", (session_id,))
             cursor.execute(
                 "INSERT INTO audit_logs(user_id, action, entity_type, entity_id, detail) "
                 "VALUES (?, 'DELETE_BOOKING', 'BOOKING', ?, ?)",

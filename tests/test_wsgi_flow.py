@@ -65,6 +65,14 @@ def main():
     class_row = conn.execute(
         "SELECT name, grade_level FROM classes WHERE active=1 ORDER BY id LIMIT 1"
     ).fetchone()
+    corrected_class = conn.execute(
+        "SELECT name FROM classes WHERE active=1 AND grade_level=? AND name<>? ORDER BY id LIMIT 1",
+        (class_row["grade_level"], class_row["name"]),
+    ).fetchone()["name"]
+    other_grade_class = conn.execute(
+        "SELECT name FROM classes WHERE active=1 AND grade_level<>? ORDER BY id LIMIT 1",
+        (class_row["grade_level"],),
+    ).fetchone()["name"]
     reusable = conn.execute(
         "SELECT id,code,total_qty,available_qty,stock_type FROM equipment "
         "WHERE available_qty>=3 AND stock_type='REUSABLE' ORDER BY id LIMIT 1"
@@ -194,8 +202,6 @@ def main():
         "teacher creates overlapping pending registration",
     ).get_json()["session_id"]
 
-    expect(manager.delete(f"/api/sessions/{overlapping_session_id}", headers=manager_headers), 403,
-           "manager cannot delete a teacher registration")
     expect(teacher.delete(f"/api/sessions/{overlapping_session_id}", headers=teacher_headers), 200,
            "teacher deletes own pending registration")
     conn = sqlite3.connect(db_path)
@@ -210,6 +216,39 @@ def main():
         200,
         "teacher recreates overlapping pending registration",
     ).get_json()["session_id"]
+
+    wrong_class_id = expect(
+        teacher.post("/api/sessions", headers=teacher_headers, json=registration),
+        200, "teacher creates a booking for the wrong class",
+    ).get_json()["session_id"]
+    wrong_class_path = f"/api/sessions/{wrong_class_id}"
+    expect(teacher.put(f"{wrong_class_path}/class", headers=teacher_headers,
+                       json={"class_name": corrected_class}), 403, "teacher cannot use manager class edit")
+    expect(manager.put(f"{wrong_class_path}/class", headers=manager_headers,
+                       json={"class_name": other_grade_class}), 400, "manager cannot pair a class with the wrong grade")
+    expect(manager.put(f"{wrong_class_path}/class", headers=manager_headers,
+                       json={"class_name": corrected_class}), 200, "manager corrects a pending booking")
+    expect(manager.post(f"{wrong_class_path}/approve", headers=manager_headers,
+                        json={"decision": "APPROVE_LAB"}), 200, "manager approves corrected booking")
+    expect(manager.put(f"{wrong_class_path}/class", headers=manager_headers,
+                       json={"class_name": class_row["name"]}), 200, "manager corrects an approved booking")
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT class_name, status FROM lab_sessions WHERE id=?",
+                            (wrong_class_id,)).fetchone() == (class_row["name"], "APPROVED_LAB")
+        for equipment, qty in zip(equipment_rows, (3, 1)):
+            assert conn.execute("SELECT available_qty FROM equipment WHERE id=?", (equipment["id"],)).fetchone()[0] == equipment["available_qty"] - qty
+    expect(manager.delete(wrong_class_path, headers=manager_headers), 200, "manager deletes approved wrong booking")
+    expect(manager.delete(wrong_class_path, headers=manager_headers), 404, "deleted booking cannot be returned twice")
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT 1 FROM lab_sessions WHERE id=?", (wrong_class_id,)).fetchone() is None
+        assert conn.execute("SELECT COUNT(*) FROM equipment_borrow_events WHERE session_id=?",
+                            (wrong_class_id,)).fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM audit_logs WHERE action='CHANGE_BOOKING_CLASS' AND entity_id=?",
+                            (wrong_class_id,)).fetchone()[0] == 2
+        for equipment, qty in zip(equipment_rows, (3, 1)):
+            assert conn.execute("SELECT available_qty FROM equipment WHERE id=?", (equipment["id"],)).fetchone()[0] == equipment["available_qty"]
+            assert conn.execute("SELECT quantity FROM inventory_transactions WHERE session_id=? AND equipment_id=? AND transaction_type='RETURN'",
+                                (wrong_class_id, equipment["id"])).fetchone() == (qty,)
 
     expect(
         teacher.post(
@@ -284,6 +323,10 @@ def main():
         200,
         "teacher starts session",
     )
+    expect(manager.delete(f"/api/sessions/{session_id}", headers=manager_headers), 409,
+           "manager cannot delete a session in progress")
+    expect(manager.put(f"/api/sessions/{session_id}/class", headers=manager_headers,
+                       json={"class_name": corrected_class}), 409, "manager cannot change class after start")
     incomplete_report = {"notes": "test", **{f"s{i}": i < 5 for i in range(1, 6)}}
     expect(
         teacher.post(

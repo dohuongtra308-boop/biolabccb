@@ -345,6 +345,11 @@
         <div id="admin-session-acceptance-list" class="space-y-4">
           <!-- Injected via JS -->
         </div>
+        <div class="border-t border-slate-200 pt-4 space-y-3">
+          <h3 class="text-sm font-bold text-slate-800">Phiếu đã xử lý chưa bắt đầu</h3>
+          <p class="text-xs text-slate-500">Sửa lớp hoặc xóa phiếu đăng ký nhầm trước khi ca dạy bắt đầu.</p>
+          <div id="admin-booking-corrections" class="space-y-4"></div>
+        </div>
       </div>
 
       <!-- ADMIN TAB 3: POST-LESSON ACCEPTANCE -->
@@ -860,7 +865,7 @@
         <div><p class="font-bold text-rose-800">Ghi nhận sự cố thiết bị/dụng cụ</p><p class="mt-1 text-[11px] text-slate-500">Sự cố sẽ chuyển sang mục Quản lý sự cố của cán bộ và chỉ trừ kiểm kê sau khi được xác nhận.</p></div>
         <div class="grid sm:grid-cols-[minmax(0,1fr)_90px] gap-2">
           <select id="report-damage-equipment" onchange="syncTeacherReportDamageLimit()" class="w-full rounded-xl border border-rose-200 bg-white p-2.5"></select>
-          <input id="report-damage-quantity" type="number" min="1" value="1" class="w-full rounded-xl border border-rose-200 bg-white p-2.5 text-center font-bold" aria-label="Số lượng thiết bị gặp sự cố">
+          <input id="report-damage-quantity" type="number" min="0" value="0" class="w-full rounded-xl border border-rose-200 bg-white p-2.5 text-center font-bold" aria-label="Số lượng thiết bị gặp sự cố">
         </div>
         <textarea id="report-damage-reason" rows="2" class="w-full rounded-xl border border-rose-200 bg-white p-2.5" placeholder="Mô tả hỏng, vỡ, mất hoặc nguyên nhân sự cố..."></textarea>
         <button type="button" onclick="addTeacherReportDamage()" class="w-full rounded-xl border border-rose-300 bg-white py-2.5 font-bold text-rose-700 hover:bg-rose-50">+ Thêm sự cố vào báo cáo</button>
@@ -869,6 +874,20 @@
       <div><label class="block text-xs font-bold mb-1">Ghi chú sử dụng, tiêu hao, hỏng/vỡ/mất:</label><textarea id="report-notes" rows="4" class="w-full p-3 border rounded-xl"></textarea></div>
       <button onclick="submitSessionReport()" class="w-full py-3 bg-emerald-600 text-white rounded-xl text-xs font-bold">Gửi báo cáo cuối ca</button>
     </div>
+  </div>
+
+  <div id="modal-booking-class" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+    <form onsubmit="saveBookingClass(event)" role="dialog" aria-modal="true" aria-labelledby="booking-class-title" class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+      <h3 id="booking-class-title" class="text-lg font-bold text-slate-900">Sửa lớp đăng ký</h3>
+      <p id="booking-class-description" class="text-sm text-slate-600"></p>
+      <label for="booking-class-select" class="block text-sm font-bold text-slate-800">Chọn lớp đúng cùng khối</label>
+      <select id="booking-class-select" required class="w-full rounded-xl border border-slate-300 p-2.5"></select>
+      <p id="booking-class-error" role="alert" class="hidden text-sm font-semibold text-rose-700"></p>
+      <div class="grid grid-cols-2 gap-3">
+        <button type="button" onclick="closeBookingClassModal()" class="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold">Quay lại</button>
+        <button id="btn-save-booking-class" type="submit" class="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Lưu lớp</button>
+      </div>
+    </form>
   </div>
 
   <!-- DELETE SESSION CONFIRMATION MODAL -->
@@ -881,6 +900,7 @@
         <h3 id="delete-session-title" class="text-lg font-bold text-slate-900">Xóa lịch đăng ký?</h3>
         <p id="delete-session-description" class="mt-2 text-sm text-slate-600"></p>
         <p class="mt-1 text-xs font-semibold text-rose-600">Thao tác này không thể hoàn tác.</p>
+        <p id="delete-session-error" role="alert" class="hidden mt-2 text-sm font-semibold text-rose-700"></p>
       </div>
       <div class="mt-6 grid grid-cols-2 gap-3">
         <button type="button" onclick="closeDeleteSessionModal()" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Không, quay lại</button>
@@ -893,6 +913,6 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 max-w-sm pointer-events-none"></div>
 
   <!-- ================= JAVASCRIPT APPLICATION LOGIC ================= -->
-  <script src="/static/js/app.js?v=20260909-delete-session-modal-15"></script>
+  <script src="/static/js/app.js?v=20261104-booking-corrections-18"></script>
 </body>
 </html>
