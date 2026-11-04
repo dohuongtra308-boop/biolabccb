@@ -510,8 +510,11 @@ function openDeleteSessionModal(event, sessionId) {
   if (!session) return;
   pendingDeleteSessionId = sessionId;
   const restoreStock = ['APPROVED_LAB','APPROVED_CLASS'].includes(session.status);
+  const completedNotice = session.status === 'COMPLETED'
+    ? ' Ca và báo cáo nghiệm thu sẽ bị xóa khỏi danh sách, lịch sử và báo cáo Excel. Tồn kho đã quyết toán được giữ nguyên. Cần xử lý hết sự cố trước khi xóa.'
+    : '';
   document.getElementById('delete-session-description').textContent =
-    `Phiếu lớp ${session.class_name} — “${session.title}” ngày ${session.session_date} sẽ bị xóa.${restoreStock ? ' Thiết bị đã xuất sẽ được hoàn kho.' : ''}`;
+    `Phiếu lớp ${session.class_name} — “${session.title}” ngày ${session.session_date} sẽ bị xóa.${restoreStock ? ' Thiết bị đã xuất sẽ được hoàn kho.' : ''}${completedNotice}`;
   document.getElementById('delete-session-error').classList.add('hidden');
   document.getElementById('modal-delete-session').classList.remove('hidden');
 }
@@ -1688,7 +1691,7 @@ async function toggleEquipmentStatus(eqId, currentStatus) {
 function renderAdminSessionCards(container, sessions, mode) {
   if (!container) return;
   if (sessions.length === 0) {
-    const emptyMessage = {approval:'Không có phiếu đăng ký chờ duyệt', acceptance:'Không có tiết học chờ đợi xác nhận', correction:'Không có phiếu đã xử lý cần kiểm tra'};
+    const emptyMessage = {approval:'Không có phiếu đăng ký chờ duyệt', acceptance:'Không có tiết học chờ đợi xác nhận', correction:'Không có phiếu đã xử lý cần kiểm tra', completed:'Chưa có ca đã nghiệm thu'};
     container.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">${emptyMessage[mode]}</div>`;
     return;
   }
@@ -1697,7 +1700,8 @@ function renderAdminSessionCards(container, sessions, mode) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
         <div><span class="text-xs font-bold text-brand-800 bg-brand-100 px-2 py-0.5 rounded">LỚP ${s.class_name} • ${s.session_date}</span><h4 class="text-base font-bold text-slate-900 mt-1">${s.title}</h4><p class="text-xs text-slate-500">GV: ${s.teacher_name || 'Giáo viên bộ môn'} | ${s.period_slot}</p></div>
         <div class="flex flex-wrap items-center gap-2"><span class="px-3 py-1 bg-slate-100 rounded-full font-bold text-xs">${sessionStatusLabel(s.status)}</span>
-          ${mode !== 'acceptance' ? `<button type="button" onclick="openBookingClassModal(${s.id})" class="px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold">Sửa lớp</button><button type="button" onclick="openDeleteSessionModal(event,${s.id})" class="px-3 py-2 border border-rose-300 text-rose-700 rounded-lg text-xs font-bold">Xóa phiếu</button>` : ''}
+          ${['approval','correction'].includes(mode) ? `<button type="button" onclick="openBookingClassModal(${s.id})" class="px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold">Sửa lớp</button><button type="button" onclick="openDeleteSessionModal(event,${s.id})" class="px-3 py-2 border border-rose-300 text-rose-700 rounded-lg text-xs font-bold">Xóa phiếu</button>` : ''}
+          ${s.status === 'COMPLETED' ? `<button type="button" onclick="openDeleteSessionModal(event,${s.id})" class="px-3 py-2 border border-rose-300 text-rose-700 rounded-lg text-xs font-bold">Xóa ca đã nghiệm thu</button>` : ''}
           ${mode === 'approval' ? `<button onclick="decideBooking(${s.id},'APPROVE_LAB')" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold">Duyệt phòng TH</button><button onclick="decideBooking(${s.id},'APPROVE_CLASS')" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">Duyệt tại lớp</button><button onclick="decideBooking(${s.id},'REJECT')" class="px-3 py-2 bg-rose-600 text-white rounded-lg text-xs font-bold">Không đồng ý</button>` : ''}
         </div>
       </div>
@@ -1727,6 +1731,8 @@ async function renderAdminBookingApprovals() {
 async function renderAdminPostSessionAcceptance() {
   const container = document.getElementById('admin-post-session-acceptance-list');
   renderAdminSessionCards(container, allSessions.filter(s => s.status === 'PENDING_ACCEPTANCE'), 'acceptance');
+  renderAdminSessionCards(document.getElementById('admin-completed-sessions'),
+    allSessions.filter(s => s.status === 'COMPLETED'), 'completed');
 }
 
 async function downloadExcel(url, filename) {

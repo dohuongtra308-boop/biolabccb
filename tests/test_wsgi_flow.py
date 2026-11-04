@@ -547,6 +547,50 @@ def main():
         assert heading in breakages_xml
     assert TEST_TITLE in breakages_xml
 
+    expect(teacher.delete(f"/api/sessions/{session_id}", headers=teacher_headers), 409,
+           "teacher cannot delete a completed session")
+    expect(manager.delete(f"/api/sessions/{session_id}", headers=manager_headers), 409,
+           "pending damage must be resolved before deleting a completed session")
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT status FROM lab_sessions WHERE id=?", (session_id,)).fetchone() == ("COMPLETED",)
+        pending_incidents = conn.execute(
+            "SELECT id FROM breakage_reports WHERE session_id=? AND is_resolved=0", (session_id,)
+        ).fetchall()
+    for incident in pending_incidents:
+        expect(manager.post(f"/api/breakages/{incident[0]}/resolve", headers=manager_headers, json={}),
+               200, "resolve remaining damage before deletion")
+    with sqlite3.connect(db_path) as conn:
+        inventory_before_delete = conn.execute(
+            "SELECT id,total_qty,available_qty FROM equipment ORDER BY id"
+        ).fetchall()
+        transactions_before_delete = conn.execute(
+            "SELECT * FROM inventory_transactions WHERE session_id=? ORDER BY id", (session_id,)
+        ).fetchall()
+    expect(manager.delete(f"/api/sessions/{session_id}", headers=manager_headers), 200,
+           "manager deletes completed session")
+    expect(manager.delete(f"/api/sessions/{session_id}", headers=manager_headers), 404,
+           "completed session can only be deleted once")
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id,total_qty,available_qty FROM equipment ORDER BY id").fetchall() == inventory_before_delete
+        assert conn.execute("SELECT * FROM inventory_transactions WHERE session_id=? ORDER BY id",
+                            (session_id,)).fetchall() == transactions_before_delete
+        for table in ("lab_sessions", "session_reports", "equipment_borrow_events",
+                      "breakage_reports", "session_borrow_items", "group_submissions"):
+            field = "id" if table == "lab_sessions" else "session_id"
+            assert conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {field}=?", (session_id,)).fetchone()[0] == 0
+        archive = json.loads(conn.execute(
+            "SELECT detail FROM audit_logs WHERE action='DELETE_BOOKING' AND entity_id=?", (session_id,)
+        ).fetchone()[0])
+        assert archive["session"]["status"] == "COMPLETED"
+        assert archive["report"]["status"] == "ACCEPTED"
+        assert archive["breakages"]
+    for path in ("/api/sessions", "/api/stats/teachers-summary", "/api/schedule/common"):
+        assert all(item["id"] != session_id for item in manager.get(path, headers=manager_headers).get_json())
+    for export_path in export_paths:
+        response = expect(manager.get(export_path, headers=manager_headers), 200,
+                          "Excel export after completed-session deletion")
+        ET.fromstring(response.data)
+
     expect(manager.get("/api/not-found", headers=manager_headers), 404, "unknown API")
     expect(teacher.post("/api/auth/logout", headers=teacher_headers), 200, "logout")
     expect(teacher.get("/api/equipment", headers=teacher_headers), 401,

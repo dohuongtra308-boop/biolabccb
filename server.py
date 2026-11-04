@@ -1264,7 +1264,7 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
             conn = get_db()
             cursor = conn.cursor()
             session = cursor.execute(
-                "SELECT id, teacher_id, status FROM lab_sessions WHERE id = ?", (session_id,)
+                "SELECT * FROM lab_sessions WHERE id = ?", (session_id,)
             ).fetchone()
             if not session:
                 conn.close()
@@ -1275,20 +1275,42 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
                 conn.close()
                 self.send_json({"success": False, "error": "Bạn chỉ được xóa lịch đăng ký của mình"}, status=403)
                 return
-            allowed = MANAGER_EDITABLE_BOOKING_STATES if manager else TEACHER_DELETABLE_BOOKING_STATES
+            allowed = MANAGER_EDITABLE_BOOKING_STATES + ('COMPLETED',) if manager else TEACHER_DELETABLE_BOOKING_STATES
             if session['status'] not in allowed:
                 conn.close()
                 self.send_json({"success": False, "error": "Không thể xóa phiếu ở trạng thái hiện tại"}, status=409)
                 return
 
-            cursor.execute("""
-                DELETE FROM lab_sessions WHERE id = ? AND status = ?
-                  AND NOT EXISTS (SELECT 1 FROM session_reports WHERE session_id = ?)
-                  AND NOT EXISTS (SELECT 1 FROM breakage_reports WHERE session_id = ?)
-                """, (session_id, session['status'], session_id, session_id))
+            completed = session['status'] == 'COMPLETED'
+            archived_detail = None
+            if completed:
+                report = cursor.execute(
+                    "SELECT * FROM session_reports WHERE session_id = ?", (session_id,)
+                ).fetchone()
+                incidents = cursor.execute(
+                    "SELECT * FROM breakage_reports WHERE session_id = ?", (session_id,)
+                ).fetchall()
+                archived_detail = json.dumps({
+                    "session": dict(session),
+                    "report": dict(report) if report else None,
+                    "breakages": [dict(item) for item in incidents],
+                }, ensure_ascii=False, default=str)
+                cursor.execute("""
+                    DELETE FROM lab_sessions WHERE id = ? AND status = 'COMPLETED'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM breakage_reports WHERE session_id = ? AND is_resolved = 0
+                      )
+                    """, (session_id, session_id))
+            else:
+                cursor.execute("""
+                    DELETE FROM lab_sessions WHERE id = ? AND status = ?
+                      AND NOT EXISTS (SELECT 1 FROM session_reports WHERE session_id = ?)
+                      AND NOT EXISTS (SELECT 1 FROM breakage_reports WHERE session_id = ?)
+                    """, (session_id, session['status'], session_id, session_id))
             if cursor.rowcount != 1:
                 conn.close()
-                self.send_json({"success": False, "error": "Phiếu vừa thay đổi hoặc đã có báo cáo/sự cố nên không thể xóa"}, status=409)
+                message = "Hãy xác nhận hết sự cố hỏng vỡ trước khi xóa ca đã nghiệm thu." if completed else "Phiếu vừa thay đổi hoặc đã có báo cáo/sự cố nên không thể xóa"
+                self.send_json({"success": False, "error": message}, status=409)
                 return
             if session['status'] in ('APPROVED_LAB', 'APPROVED_CLASS'):
                 borrowed = cursor.execute(
@@ -1313,11 +1335,14 @@ class BioLabHTTPHandler(http.server.BaseHTTPRequestHandler):
                         "VALUES (?,?,'RETURN',?,'Hoàn kho khi xóa phiếu đăng ký')",
                         (session_id, equipment_id, qty),
                     )
-                cursor.execute("DELETE FROM equipment_borrow_events WHERE session_id = ?", (session_id,))
+            # Explicit cleanup also covers SQLite connections without FK cascades.
+            for table in ('equipment_borrow_events', 'session_reports', 'breakage_reports',
+                          'session_borrow_items', 'group_submissions'):
+                cursor.execute(f"DELETE FROM {table} WHERE session_id = ?", (session_id,))
             cursor.execute(
                 "INSERT INTO audit_logs(user_id, action, entity_type, entity_id, detail) "
                 "VALUES (?, 'DELETE_BOOKING', 'BOOKING', ?, ?)",
-                (user['id'], session_id, f"Xóa lịch đăng ký ở trạng thái {session['status']}"),
+                (user['id'], session_id, archived_detail or f"Xóa lịch đăng ký ở trạng thái {session['status']}"),
             )
             conn.commit()
             conn.close()
